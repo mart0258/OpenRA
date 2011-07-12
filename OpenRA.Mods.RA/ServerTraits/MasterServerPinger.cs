@@ -14,6 +14,7 @@ using System.Net;
 using OpenRA.Server;
 using S = OpenRA.Server.Server;
 using System.Linq;
+using OpenRA.FileFormats;
 
 namespace OpenRA.Mods.RA.Server
 {
@@ -53,20 +54,23 @@ namespace OpenRA.Mods.RA.Server
 				{
 					try
 					{
-						var url = "ping.php?port={0}&name={1}&state={2}&players={3}&mods={4}&map={5}&maxplayers={6}";
+						var url = "ping.php?port={0}&yaml={1}";
 						if (isInitialPing) url += "&new=1";
 
 						using (var wc = new WebClient())
 						{
 							wc.Proxy = null;
-							 wc.DownloadData(
-								server.Settings.MasterServer + url.F(
-								server.Settings.ExternalPort, Uri.EscapeUriString(server.Settings.Name),
-								server.GameStarted ? 2 : 1,	// todo: post-game states, etc.
-								server.lobbyInfo.Clients.Count,
-								string.Join(",", Game.CurrentMods.Select(f => "{0}@{1}".F(f.Key, f.Value.Version)).ToArray()),
-								server.lobbyInfo.GlobalSettings.Map,
-						        server.Map.PlayerCount));
+							var gameAnnouncement = new GameAnnouncement()
+							{
+								Port = server.Settings.ExternalPort,
+								Name = server.Settings.Name,
+								State = server.GameStarted ? 2 : 1,	// todo: post-game states, etc.
+								Players = server.lobbyInfo.Clients.Count,
+								Mods = string.Join(",", Game.CurrentMods.Select(f => "{0}@{1}".F(f.Key, f.Value.Version)).ToArray()),
+								Map = server.lobbyInfo.GlobalSettings.Map,
+								MaxPlayers = server.Map.PlayerCount
+							};
+							 wc.DownloadData(server.Settings.MasterServer + url.F(server.Settings.ExternalPort, gameAnnouncement));
 
 							if (isInitialPing)
 							{
@@ -88,5 +92,16 @@ namespace OpenRA.Mods.RA.Server
 
 			a.BeginInvoke(null, null);
 		}
+	}
+	
+	class GameAnnouncement
+	{
+		int Port;
+		string Name;
+		int State;
+		int Players;
+		string Mods;
+		string Map;
+		int MaxPlayers;
 	}
 }

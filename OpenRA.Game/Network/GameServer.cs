@@ -22,6 +22,7 @@ namespace OpenRA.Network
 		public readonly int Players = 0;
 		public readonly string Map = null;
 		public readonly string[] Mods = { };
+		public readonly int MaxPlayers = 0;
 		public readonly int TTL = 0;
 
 		public Dictionary<string, string> UsefulMods
