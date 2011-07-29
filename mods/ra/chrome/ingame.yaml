@@ -62,17 +62,9 @@ Container@INGAME_ROOT:
 			Text:Options
 			Font:Bold
 			Key: escape
-		Button@INGAME_DIPLOMACY_BUTTON:
-			Id:INGAME_DIPLOMACY_BUTTON
-			X:162
-			Y:0
-			Width:160
-			Height:25
-			Text:Diplomacy
-			Font:Bold
 		Button@INGAME_DEVELOPERMODE_BUTTON:
 			Id:INGAME_DEVELOPERMODE_BUTTON
-			X:324
+			X:162
 			Y:0
 			Width:160
 			Height:25
@@ -178,24 +170,6 @@ Container@INGAME_ROOT:
 					Width:160
 					Height:25
 					Text:Abort Mission
-					Font:Bold
-		Background@DIPLOMACY_BG:
-			Id:DIPLOMACY_BG
-			Logic:DiplomacyLogic
-			X:(WINDOW_RIGHT - WIDTH)/2
-			Y:(WINDOW_BOTTOM - HEIGHT)/2
-			Width:450
-			Height:400
-			Visible:false
-			Children:
-				Label@LABEL_TITLE:
-					Id:LABEL_TITLE
-					X:(PARENT_RIGHT - WIDTH)/2
-					Y:20
-					Width:250
-					Height:25
-					Text:Diplomacy
-					Align:Center
 					Font:Bold
 		ChatDisplay@CHAT_DISPLAY:
 			Id:CHAT_DISPLAY
