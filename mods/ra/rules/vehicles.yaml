@@ -309,6 +309,103 @@ JEEP:
 		MaxWeight: 1
 		PipCount: 1
 		UnloadFacing: 220
+	TransformOnPassenger@e3:
+		PassengerTypes: e3
+		OnEnter: jeep.e3
+		OnExit: jeep
+	TransformOnPassenger@e2:
+		PassengerTypes: e2
+		OnEnter: jeep.e2
+		OnExit: jeep
+	TransformOnPassenger@e1:
+		PassengerTypes: e1
+		OnEnter: jeep.e1
+		OnExit: jeep
+	TransformOnPassenger@e7:
+		PassengerTypes: e7
+		OnEnter: jeep.e7
+		OnExit: jeep
+	TransformOnPassenger@e4:
+		PassengerTypes: e4
+		OnEnter: jeep.e4
+		OnExit: jeep
+	TransformOnPassenger@shok:
+		PassengerTypes: shok
+		OnEnter: jeep.shok
+		OnExit: jeep
+
+JEEP.E7:
+	Inherits: JEEP
+	-Buildable:
+	Tooltip:
+		Name: Ranger (Tanya)
+	AttackTurreted:
+		PrimaryWeapon: Colt45.IFV
+		SecondaryWeapon: Colt45.IFV
+		PrimaryLocalOffset: -2,0,0,0,0,  2,0,0,0,0
+		SecondaryLocalOffset: -2,0,0,0,0,  2,0,0,0,0
+	RenderUnitTurreted:
+		Image: JEEP
+
+JEEP.E3:
+	Inherits: JEEP
+	-Buildable:
+	-WithMuzzleFlash:
+	Tooltip:
+		Name: Ranger (Rockets)
+	AttackTurreted:
+		PrimaryWeapon: RedEye.IFV
+		SecondaryWeapon: Dragon.IFV
+		PrimaryLocalOffset: -5,0,0,0,-20,  5,0,0,0,20
+		SecondaryLocalOffset: -5,0,0,0,-20,  5,0,0,0,20
+	RenderUnitTurreted:
+		Image: JEEP
+
+JEEP.E2:
+	Inherits: JEEP
+	-Buildable:
+	-WithMuzzleFlash:
+	Tooltip:
+		Name: Ranger (Grenades)
+	AttackTurreted:
+		PrimaryWeapon: Grenade.IFV
+	RenderUnitTurreted:
+		Image: JEEP
+
+JEEP.E4:
+	Inherits: JEEP
+	-Buildable:
+	-WithMuzzleFlash:
+	Tooltip:
+		Name: Ranger (Flamethrower)
+	AttackTurreted:
+		PrimaryWeapon: Flamer.IFV
+	RenderUnitTurreted:
+		Image: JEEP
+
+JEEP.E1:
+	Inherits: JEEP
+	-Buildable:
+	Tooltip:
+		Name: Ranger (Guns)
+	AttackTurreted:
+		PrimaryWeapon: M60mg.IFV
+		SecondaryWeapon: M60mg.IFV
+		PrimaryLocalOffset: -3,0,0,0,0,  3,0,0,0,0
+		SecondaryLocalOffset: -3,0,0,0,0,  3,0,0,0,0
+	RenderUnitTurreted:
+		Image: JEEP
+
+JEEP.SHOK:
+	Inherits: JEEP
+	-Buildable:
+	-WithMuzzleFlash:
+	Tooltip:
+		Name: Ranger (Shock)
+	AttackTurreted:
+		PrimaryWeapon: PortaTesla.IFV
+	RenderUnitTurreted:
+		Image: JEEP
 
 APC:
 	Inherits: ^Tank

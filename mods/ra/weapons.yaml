@@ -14,6 +14,23 @@ Colt45:
 		Explosion: piff
 		InfDeath: 1
 		Damage: 50
+
+Colt45.IFV:
+	ROF: 5
+	Range: 5.75
+	Report: GUN5
+	Projectile: Bullet
+		Speed: 100
+	Warhead:
+		Spread: 1
+		Versus:
+			Wood: 5%
+			Light: 5%
+			Heavy: 5%
+			Concrete: 5%
+		Explosion: piff
+		InfDeath: 1
+		Damage: 70
 		
 ZSU-23:
 	ROF: 10
@@ -183,6 +200,30 @@ Flamer:
 		ImpactSound: firebl3
 		Damage: 70
 
+Flamer.IFV:
+	ROF: 50
+	Range: 5
+	Burst: 2
+	BurstDelay: 10
+	Projectile: Bullet
+		Speed: 12
+		Trail: fb2
+		Image: FB1
+	Warhead:
+		Spread: 4
+		Versus:
+			None: 90%
+			Wood: 100%
+			Light: 60%
+			Heavy: 25%
+			Concrete: 50%
+		Explosion: napalm
+		WaterExplosion: napalm
+		InfDeath: 4
+		SmudgeType: Scorch
+		ImpactSound: firebl3
+		Damage: 90
+
 ChainGun:
 	ROF: 10
 	Range: 5
@@ -287,6 +328,39 @@ Dragon:
 		SmudgeType: Crater
 		Damage: 50
 		ImpactSound: kaboom12
+
+Dragon.IFV:
+	ROF: 50
+	Burst: 2
+	BurstDelay: 1
+	Range: 5
+	Report: MISSILE6
+	ValidTargets: Ground
+	Projectile: Missile
+		Speed: 25
+		Arm: 2
+		High: true
+		Shadow: false
+		Proximity: true
+		Trail: smokey
+		ContrailLength: 10
+		Inaccuracy: 3
+		Image: DRAGON
+		ROT: 5
+		RangeLimit: 35
+	Warhead:
+		Spread: 3
+		Versus:
+			None: 10%
+			Wood: 75%
+			Light: 35%
+			Concrete: 20%
+		Explosion: med_explosion
+		WaterExplosion: med_splash
+		InfDeath: 3
+		SmudgeType: Crater
+		Damage: 40
+		ImpactSound: kaboom12
 		
 HellfireAG:
 	ROF: 60
@@ -355,12 +429,40 @@ Grenade:
 	Projectile: Bullet
 		Speed: 5
 		High: true
-		Angle: .1
+		Angle: .2
 		Inaccuracy: 13
 		Image: BOMB
+		ContrailLength: 10
 	Warhead:
 		Spread: 6
 		Versus: 
+			None: 50%
+			Wood: 100%
+			Light: 25%
+			Heavy: 5%
+		Explosion: med_explosion
+		WaterExplosion: small_splash
+		InfDeath: 2
+		SmudgeType: Crater
+		Damage: 60
+		ImpactSound: kaboom12
+
+Grenade.IFV:
+	ROF: 80
+	Range: 4
+	Burst: 3
+	BurstDelay: 4
+	Report: grenade1
+	Projectile: Bullet
+		Speed: 5
+		High: true
+		Angle: .2
+		Inaccuracy: 13
+		Image: BOMB
+		ContrailLength: 10
+	Warhead:
+		Spread: 6
+		Versus:
 			None: 50%
 			Wood: 100%
 			Light: 25%
@@ -550,6 +652,25 @@ M60mg:
 		WaterExplosion: small_splash
 		InfDeath: 1
 		Damage: 15
+
+M60mg.IFV:
+	ROF: 30
+	Range: 4
+	Report: PILLBOX1
+	Burst: 5
+	Projectile: Bullet
+		Speed: 100
+	Warhead:
+		Spread: 3
+		Versus:
+			Wood: 10%
+			Light: 30%
+			Heavy: 10%
+			Concrete: 10%
+		Explosion: piffs
+		WaterExplosion: small_splash
+		InfDeath: 1
+		Damage: 30
 		
 Napalm:
 	ROF: 20
@@ -700,6 +821,36 @@ RedEye:
 		InfDeath: 2
 		SmudgeType: Crater
 		Damage: 40
+
+RedEye.IFV:
+	ROF: 50
+	Burst: 2
+	BurstDelay: 1
+	Range: 7.5
+	Report: MISSILE1
+	ValidTargets: Air
+	Projectile: Missile
+		Arm: 3
+		High: true
+		Shadow: false
+		Proximity: true
+#		Trail: smokey
+		ContrailLength: 10
+		Image: MISSILE
+		ROT: 20
+		RangeLimit: 30
+		Speed: 35
+	Warhead:
+		Spread: 3
+		Versus:
+			None: 90%
+			Wood: 75%
+			Light: 60%
+			Heavy: 25%
+		Explosion: med_explosion
+		InfDeath: 2
+		SmudgeType: Crater
+		Damage: 30
 
 8Inch:
 	ROF: 250
@@ -1037,6 +1188,20 @@ PortaTesla:
 		Spread: 1
 		InfDeath: 5
 		Damage: 45
+
+PortaTesla.IFV:
+	ROF: 90
+	Burst: 2
+	BurstDelay: 10
+	Range: 3.5
+	Report: TESLA1
+#	Report: SHKTROP1
+	Charges: yes
+	Projectile: TeslaZap
+	Warhead:
+		Spread: 1
+		InfDeath: 5
+		Damage: 60
 
 TTankZap:
 	ROF: 120
