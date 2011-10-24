@@ -102,9 +102,11 @@ namespace OpenRA.Mods.RA.Air
 
 
 		protected readonly Actor self;
-		[Sync]
-		public int Facing { get; set; }
-		[Sync]
+        [Sync]
+        public int Facing { get; set; }
+        [Sync]
+        public int PreviousFacing { get; set; }
+        [Sync]
 		public int Altitude { get; set; }
 		[Sync]
 		public int2 SubPxPosition;
@@ -120,6 +122,7 @@ namespace OpenRA.Mods.RA.Air
 				this.SubPxPosition = 1024 * Util.CenterOfCell( init.Get<LocationInit, int2>() );
 
 			this.Facing = init.Contains<FacingInit>() ? init.Get<FacingInit,int>() : info.InitialFacing;
+            this.PreviousFacing = this.Facing;
 			this.Altitude = init.Contains<AltitudeInit>() ? init.Get<AltitudeInit,int>() : 0;
 			Info = info;
 		}

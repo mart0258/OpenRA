@@ -36,8 +36,23 @@ namespace OpenRA.Mods.RA.Air
 			var aircraft = self.Trait<Aircraft>();
 
 			var desiredFacing = Util.GetFacing(d, aircraft.Facing);
-			if (aircraft.Altitude == cruiseAltitude)
-				aircraft.Facing = Util.TickFacing(aircraft.Facing, desiredFacing, aircraft.ROT);
+            if (aircraft.Altitude == cruiseAltitude)
+            {
+                /* Check if plane isn't "wobbling" back and forth. */
+                var leftTurn1 = (aircraft.Facing - desiredFacing) & 0xFF;
+                var leftTurn2 = (aircraft.PreviousFacing - aircraft.Facing) & 0xFF;
+                if ((aircraft.PreviousFacing == aircraft.Facing) ||
+                    (leftTurn1 <= 128 && leftTurn2 <= 128) ||
+                    (leftTurn1 >= 128 && leftTurn2 >= 128))
+                {
+                    aircraft.PreviousFacing = aircraft.Facing;
+                    aircraft.Facing = Util.TickFacing(aircraft.Facing, desiredFacing, aircraft.ROT);
+                }
+                else
+                {
+                    aircraft.PreviousFacing = aircraft.Facing;
+                }
+            }
 
 			if (aircraft.Altitude < cruiseAltitude)
 				++aircraft.Altitude;
