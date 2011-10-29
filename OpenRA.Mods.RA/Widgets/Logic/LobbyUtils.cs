@@ -117,7 +117,7 @@ namespace OpenRA.Mods.RA.Widgets.Logic
 				return item;
 			};
 
-			dropdown.ShowDropDown("RACE_DROPDOWN_TEMPLATE", 150, countryNames.Keys.ToList(), setupItem);
+			dropdown.ShowDropDown("RACE_DROPDOWN_TEMPLATE", 150, countryNames.Keys, setupItem);
 		}
 
 		public static void ShowColorDropDown(DropDownButtonWidget color, Session.Client client,
