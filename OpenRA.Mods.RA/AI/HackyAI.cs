@@ -14,9 +14,7 @@ using System.Linq;
 using OpenRA.FileFormats;
 using OpenRA.Mods.RA.Buildings;
 using OpenRA.Traits;
-using OpenRA.Mods.RA.Activities;
 using XRandom = OpenRA.Thirdparty.Random;
-
 
 //TODO:
 // effectively clear the area around the production buildings' spawn points.
@@ -28,7 +26,7 @@ using XRandom = OpenRA.Thirdparty.Random;
 // explore spawn points methodically
 // once you find a player, attack the player instead of spawn points.
 
-namespace OpenRA.Mods.RA
+namespace OpenRA.Mods.RA.AI
 {
 	class HackyAIInfo : IBotInfo, ITraitInfo
 	{
@@ -36,6 +34,8 @@ namespace OpenRA.Mods.RA
 		public readonly int SquadSize = 8;
 		public readonly int AssignRolesInterval = 20;
 		public readonly string RallypointTestBuilding = "fact";		// temporary hack to maintain previous rallypoint behavior.
+		public readonly string[] UnitQueues = { "Vehicle", "Infantry", "Plane" };
+		public readonly bool ShouldRepairBuildings = true;
 
 		string IBotInfo.Name { get { return this.Name; } }
 
@@ -60,30 +60,34 @@ namespace OpenRA.Mods.RA
 
 	/* a pile of hacks, which control a local player on the host. */
 
-	class HackyAI : ITick, IBot
+	class Enemy { public int Aggro; }
+
+	class HackyAI : ITick, IBot, INotifyDamage
 	{
 		bool enabled;
-		int ticks;
-		Player p;
+		public int ticks;
+		public Player p;
 		PowerManager playerPower;
 		readonly BuildingInfo rallypointTestBuilding;		// temporary hack
+		readonly HackyAIInfo Info;
 
+		Cache<Player,Enemy> aggro = new Cache<Player, Enemy>( _ => new Enemy() );
 		int2 baseCenter;
 		XRandom random = new XRandom(); //we do not use the synced random number generator.
 		BaseBuilder[] builders;
 
-		World world { get { return p.PlayerActor.World; } }
+		const int MaxBaseDistance = 15;
+		public const int feedbackTime = 30;		// ticks; = a bit over 1s. must be >= netlag.
+
+		public World world { get { return p.PlayerActor.World; } }
 		IBotInfo IBot.Info { get { return this.Info; } }
 
-		readonly HackyAIInfo Info;
 		public HackyAI(HackyAIInfo Info)
 		{
 			this.Info = Info;
 			// temporary hack.
 			this.rallypointTestBuilding = Rules.Info[Info.RallypointTestBuilding].Traits.Get<BuildingInfo>();
 		}
-
-		const int MaxBaseDistance = 15;
 
 		public static void BotDebug(string s, params object[] args)
 		{
@@ -156,22 +160,20 @@ namespace OpenRA.Mods.RA
 			return cells.All(c => bi.GetBuildingAt(c) == null);
 		}
 
-		int2? ChooseBuildLocation(ProductionItem item)
+		public int2? ChooseBuildLocation(string actorType)
 		{
-			var bi = Rules.Info[item.Item].Traits.Get<BuildingInfo>();
+			var bi = Rules.Info[actorType].Traits.Get<BuildingInfo>();
 
 			for (var k = 0; k < MaxBaseDistance; k++)
 				foreach (var t in world.FindTilesInCircle(baseCenter, k))
-					if (world.CanPlaceBuilding(item.Item, bi, t, null))
-						if (bi.IsCloseEnoughToBase(world, p, item.Item, t))
+					if (world.CanPlaceBuilding(actorType, bi, t, null))
+						if (bi.IsCloseEnoughToBase(world, p, actorType, t))
 							if (NoBuildingsUnder(Util.ExpandFootprint(
-								FootprintUtils.Tiles( item.Item, bi, t ), false)))
+								FootprintUtils.Tiles(actorType, bi, t), false)))
 								return t;
 
 			return null;		// i don't know where to put it.
 		}
-
-		const int feedbackTime = 30;		// ticks; = a bit over 1s. must be >= netlag.
 
 		public void Tick(Actor self)
 		{
@@ -181,19 +183,11 @@ namespace OpenRA.Mods.RA
 			ticks++;
 
 			if (ticks == 10)
-			{
 				DeployMcv(self);
-			}
 
 			if (ticks % feedbackTime == 0)
-			{
-				//about once every second, perform unintelligent cleanup tasks.
-				//e.g. ClearAreaAroundSpawnPoints();
-				//e.g. start repairing damaged buildings.
-				BuildRandom("Vehicle");
-				BuildRandom("Infantry");
-				BuildRandom("Plane");
-			}
+				foreach (var q in Info.UnitQueues)
+					BuildRandom(q);
 
 			AssignRolesToIdleUnits(self);
 			SetRallyPointsForNewProductionBuildings(self);
@@ -213,16 +207,33 @@ namespace OpenRA.Mods.RA
 
 		int2? ChooseEnemyTarget()
 		{
-			// Criteria for picking an enemy:
-			// 1. not ourself.
-			// 2. enemy.
-			// 3. not dead.
-			var possibleTargets = world.WorldActor.Trait<MPStartLocations>().Start
-					.Where(kv => kv.Key != p && p.Stances[kv.Key] == Stance.Enemy
-						&& p.WinState == WinState.Undefined)
-					.Select(kv => kv.Value);
+			var liveEnemies = world.Players
+				.Where(q => p != q && p.Stances[q] == Stance.Enemy)
+				.Where(q => p.WinState == WinState.Undefined && q.WinState == WinState.Undefined);
 
-			return possibleTargets.Any() ? possibleTargets.Random(random) : (int2?)null;
+			var leastLikedEnemies = liveEnemies
+				.GroupBy(e => aggro[e])
+				.OrderByDescending(g => g.Key)
+				.FirstOrDefault();
+
+			if (leastLikedEnemies == null)
+				return null;
+
+			var enemy = leastLikedEnemies != null ? leastLikedEnemies.Random(random) : null;
+
+			/* bump the aggro slightly to avoid changing our mind */
+			if (leastLikedEnemies.Count() > 1)
+				aggro[enemy].Aggro++;
+
+			/* pick something worth attacking owned by that player */
+			var target = world.Actors
+				.Where(a => a.Owner == enemy && a.HasTrait<IOccupySpace>())
+				.Random(random);
+
+			if (target == null)
+				return null;
+
+			return target.Location;
 		}
 
 		int assignRolesTicks = 0;
@@ -255,7 +266,6 @@ namespace OpenRA.Mods.RA
 
 				activeUnits.Add(a);
 			}
-
 
 			/* Create an attack force when we have enough units around our base. */
 			// (don't bother leaving any behind for defense.)
@@ -355,7 +365,7 @@ namespace OpenRA.Mods.RA
 			var possibleRallyPoints = world.FindTilesInCircle(startPos, 8).Where(IsRallyPointValid).ToArray();
 			if (possibleRallyPoints.Length == 0)
 			{
-				Game.Debug("Bot Bug: No possible rallypoint near {0}", startPos);
+				BotDebug("Bot Bug: No possible rallypoint near {0}", startPos);
 				return startPos;
 			}
 
@@ -428,84 +438,21 @@ namespace OpenRA.Mods.RA
 				world.IssueOrder(Order.StartProduction(queue.self, unit.Name, 1));
 		}
 
-		class BaseBuilder
+		public void Damaged(Actor self, AttackInfo e)
 		{
-			enum BuildState	{ ChooseItem, WaitForProduction, WaitForFeedback }
+			if (!enabled) return;
 
-			BuildState state = BuildState.WaitForFeedback;
-			string category;
-			HackyAI ai;
-			int lastThinkTick;
-			Func<ProductionQueue, ActorInfo> chooseItem;
-
-			public BaseBuilder(HackyAI ai, string category, Func<ProductionQueue, ActorInfo> chooseItem)
-			{
-				this.ai = ai;
-				this.category = category;
-				this.chooseItem = chooseItem;
-			}
-
-			public void Tick()
-			{
-				// Pick a free queue
-				var queue = ai.FindQueues( category ).FirstOrDefault();
-				if (queue == null)
-					return;
-
-				var currentBuilding = queue.CurrentItem();
-				switch (state)
+			if (Info.ShouldRepairBuildings && self.HasTrait<RepairableBuilding>())
+				if (e.DamageState > DamageState.Light && e.PreviousDamageState <= DamageState.Light)
 				{
-					case BuildState.ChooseItem:
-						{
-							var item = chooseItem(queue);
-							if (item == null)
-							{
-								state = BuildState.WaitForFeedback;
-								lastThinkTick = ai.ticks;
-							}
-							else
-							{
-								BotDebug("AI: Starting production of {0}".F(item.Name));
-								state = BuildState.WaitForProduction;
-								ai.world.IssueOrder(Order.StartProduction(queue.self, item.Name, 1));
-							}
-						}
-						break;
-
-					case BuildState.WaitForProduction:
-						if (currentBuilding == null) return;	/* let it happen.. */
-
-						else if (currentBuilding.Paused)
-							ai.world.IssueOrder(Order.PauseProduction(queue.self, currentBuilding.Item, false));
-						else if (currentBuilding.Done)
-						{
-							state = BuildState.WaitForFeedback;
-							lastThinkTick = ai.ticks;
-
-							/* place the building */
-							var location = ai.ChooseBuildLocation(currentBuilding);
-							if (location == null)
-							{
-								BotDebug("AI: Nowhere to place {0}".F(currentBuilding.Item));
-								ai.world.IssueOrder(Order.CancelProduction(queue.self, currentBuilding.Item, 1));
-							}
-							else
-							{
-								ai.world.IssueOrder(new Order("PlaceBuilding", ai.p.PlayerActor, false)
-									{
-										TargetLocation = location.Value,
-										TargetString = currentBuilding.Item
-									});
-							}
-						}
-						break;
-
-					case BuildState.WaitForFeedback:
-						if (ai.ticks - lastThinkTick > feedbackTime)
-							state = BuildState.ChooseItem;
-						break;
+					BotDebug("Bot noticed damage {0} {1}->{2}, repairing.",
+						self, e.PreviousDamageState, e.DamageState);
+					world.IssueOrder(new Order("RepairBuilding", self.Owner.PlayerActor, false)
+						{ TargetActor = self });
 				}
-			}
+
+			if (e.Attacker != null && e.Damage > 0)
+				aggro[e.Attacker.Owner].Aggro += e.Damage;
 		}
 	}
 }

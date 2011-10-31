@@ -10,12 +10,11 @@
 
 using System;
 using System.Drawing;
-using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using OpenRA.FileFormats.Graphics;
 using Tao.OpenGl;
 using Tao.Sdl;
-using OpenRA.FileFormats.Graphics;
 
 namespace OpenRA.Renderer.SdlCommon
 {
@@ -75,16 +74,42 @@ namespace OpenRA.Renderer.SdlCommon
 			if (extensions == null)
 				Console.WriteLine("Failed to fetch GL_EXTENSIONS, this is bad.");
 
-			var missingExtensions = requiredExtensions.Where( r => !extensions.Contains(r) ).ToArray();
+			var missingExtensions = requiredExtensions.Where(r => !extensions.Contains(r)).ToArray();
 
 			if (missingExtensions.Any())
 			{
 				ErrorHandler.WriteGraphicsLog("Unsupported GPU: Missing extensions: {0}"
-					.F(string.Join(",", missingExtensions)));
+					.F(missingExtensions.JoinWith(",")));
 				throw new InvalidProgramException("Unsupported GPU. See graphics.log for details.");
 			}
 
 			return surf;
+		}
+
+		static int ModeFromPrimitiveType(PrimitiveType pt)
+		{
+			switch(pt)
+			{
+			case PrimitiveType.PointList: return Gl.GL_POINTS;
+			case PrimitiveType.LineList: return Gl.GL_LINES;
+			case PrimitiveType.TriangleList: return Gl.GL_TRIANGLES;
+			case PrimitiveType.QuadList: return Gl.GL_QUADS;
+			}
+			throw new NotImplementedException();
+		}
+
+		public static void DrawPrimitives(PrimitiveType pt, int firstVertex, int numVertices)
+		{
+			Gl.glDrawArrays(ModeFromPrimitiveType(pt), firstVertex, numVertices);
+			ErrorHandler.CheckGlError();
+		}
+
+		public static void Clear()
+		{
+			Gl.glClearColor(0, 0, 0, 0);
+			ErrorHandler.CheckGlError();
+			Gl.glClear(Gl.GL_COLOR_BUFFER_BIT);
+			ErrorHandler.CheckGlError();
 		}
 	}
 }
