@@ -69,6 +69,9 @@ namespace OpenRA.Traits
 			}
 		}
 
+        /* Test: Damage logging */
+        private static System.IO.StreamWriter damageLog;
+
 		public void InflictDamage(Actor self, Actor attacker, int damage, WarheadInfo warhead, bool ignoreModifiers)
 		{
 			if (IsDead) return;		/* overkill! don't count extra hits as more kills! */
@@ -81,6 +84,21 @@ namespace OpenRA.Traits
 
 			if (!ignoreModifiers)
 				damage = damage > 0 ? (int)(damage * modifier) : damage;
+
+            /* Test: Damage logging */
+            if (self.World.orderManager.Host != "<no server>" &&
+                !self.Info.Name.Contains("husk"))
+               
+            {
+                if (damageLog == null)
+                {
+                    damageLog = new System.IO.StreamWriter("damage.log");
+                }
+                damageLog.WriteLine("{0}({1}-{2}) -> {3}({4}-{5}) -- {6}/{7}",
+                    attacker.Info.Name, attacker.Owner.ClientIndex, attacker.Owner.Country.Name.Substring(0, 1),
+                    self.Info.Name, self.Owner.ClientIndex, self.Owner.Country.Name.Substring(0, 1),
+                    damage, Exts.Clamp(hp - damage, 0, MaxHP));
+            }
 
 			hp = Exts.Clamp(hp - damage, 0, MaxHP);
 
