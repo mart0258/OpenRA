@@ -141,7 +141,7 @@ YAK:
 	Armor:
 		Type: Light
 	RevealsShroud:
-		Range: 10
+		Range: 12
 	AttackPlane:
 		PrimaryWeapon: ChainGun.Yak
 		SecondaryWeapon: ChainGun.Yak
@@ -274,7 +274,7 @@ HIND:
 	Armor:
 		Type: Light
 	RevealsShroud:
-		Range: 10
+		Range: 12
 	AttackHeli:
 		PrimaryWeapon: ChainGun
 		SecondaryWeapon: ChainGun

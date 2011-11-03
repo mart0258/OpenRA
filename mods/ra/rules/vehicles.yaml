@@ -17,7 +17,7 @@ V2RL:
 	Mobile:
 		Speed: 7
 	RevealsShroud:
-		Range: 5
+		Range: 6
 	AttackFrontal:
 		PrimaryWeapon: SCUD
 	RenderUnitReload:
@@ -44,7 +44,7 @@ V2RL:
 	Mobile:
 		Speed: 9
 	RevealsShroud:
-		Range: 4
+		Range: 6
 	Turreted:
 		ROT: 5
 	AttackTurreted:
@@ -79,7 +79,7 @@ V2RL:
 		Speed: 6
 		Crushes: wall, atmine, crate, infantry
 	RevealsShroud:
-		Range: 5
+		Range: 6
 	Turreted:
 		ROT: 5
 	AttackTurreted:
@@ -116,7 +116,7 @@ V2RL:
 		Speed: 5
 		Crushes: wall, atmine, crate, infantry
 	RevealsShroud:
-		Range: 5
+		Range: 6
 	Turreted:
 		ROT: 5
 	AttackTurreted:
@@ -199,7 +199,7 @@ ARTY:
 		ROT: 2
 		Speed: 6
 	RevealsShroud:
-		Range: 5
+		Range: 6
 	AttackFrontal:
 		PrimaryWeapon: 155mm
 	RenderUnit:
@@ -226,14 +226,18 @@ HARV:
 		Resources: Ore,Gems
 		UnloadTicksPerBale: 1
 	Health:
-		HP: 600
+		HP: 550
+	SelfHealing:
+		Step: 1
+		Ticks: 5
+		HealIfBelow: 50%
 	Armor:
 		Type: Heavy
 	Mobile:
 		Speed: 6
 		Crushes: wall, atmine, crate, infantry
 	RevealsShroud:
-		Range: 4
+		Range: 6
 	RenderHarvester:
 	-AttackMove:
 	GpsDot:
@@ -267,7 +271,7 @@ MCV:
 		Speed: 6
 		Crushes: wall, atmine, crate, infantry
 	RevealsShroud:
-		Range: 4
+		Range: 6
 	Transforms:
 		IntoActor: fact
 		Offset:-1,-1
@@ -300,7 +304,7 @@ JEEP:
 		ROT: 10
 		Speed: 12
 	RevealsShroud:
-		Range: 8
+		Range: 9
 	Turreted:
 		ROT: 10
 	AttackTurreted:
@@ -333,7 +337,7 @@ APC:
 	Mobile:
 		Speed: 10
 	RevealsShroud:
-		Range: 5
+		Range: 6
 	AttackFrontal:
 		PrimaryWeapon: M60mg
 		PrimaryOffset: 0,0,0,-4
@@ -366,7 +370,7 @@ MNLY.AP:
 	Mobile:
 		Speed: 9
 	RevealsShroud:
-		Range: 5
+		Range: 6
 	RenderUnit:
 		Image: MNLY
 	Minelayer:
@@ -397,7 +401,7 @@ MNLY.AT:
 	Mobile:
 		Speed: 9
 	RevealsShroud:
-		Range: 5
+		Range: 6
 	RenderUnit:
 		Image: MNLY
 	Minelayer:
@@ -427,7 +431,7 @@ TRUK:
 	Mobile:
 		Speed: 9
 	RevealsShroud:
-		Range: 3
+		Range: 4
 	RenderUnit:
 	SupplyTruck:
 		Payload: 500
@@ -522,7 +526,7 @@ TTNK:
 		Speed: 8
 		Crushes: wall, atmine, crate, infantry
 	RevealsShroud:
-		Range: 7
+		Range: 6
 	AttackFrontal:
 		PrimaryWeapon: TTankZap
 		PrimaryOffset: 0,0,0,-5
@@ -550,7 +554,7 @@ FTRK:
 		ROT: 10
 		Speed: 9
 	RevealsShroud:
-		Range: 4
+		Range: 6
 	Turreted:
 		ROT: 5
 	AttackTurreted:

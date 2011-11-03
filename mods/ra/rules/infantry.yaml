@@ -18,7 +18,7 @@ DOG:
 	Mobile:
 		Speed: 7
 	RevealsShroud:
-		Range: 5
+		Range: 12
 	AutoTarget:
 	AttackLeap:
 		PrimaryWeapon: DogJaw
@@ -50,6 +50,8 @@ E1:
 	-RenderInfantry:
 	RenderInfantryProne:
 		IdleAnimations: idle1,idle2
+	RevealsShroud:
+		Range: 6
 
 E2:
 	Inherits: ^Infantry
@@ -80,6 +82,8 @@ E2:
 	Explodes:
 		Weapon: UnitExplodeSmall
 		Chance: 50		
+	RevealsShroud:
+		Range: 6
 
 E3:
 	Inherits: ^Infantry
@@ -106,6 +110,8 @@ E3:
 	-RenderInfantry:
 	RenderInfantryProne:
 		IdleAnimations: idle1,idle2
+	RevealsShroud:
+		Range: 6
 
 E4:
 	Inherits: ^Infantry
@@ -133,6 +139,8 @@ E4:
 	-RenderInfantry:
 	RenderInfantryProne:
 		IdleAnimations: idle1,idle2
+	RevealsShroud:
+		Range: 6
 
 E6:
 	Inherits: ^Infantry
@@ -163,6 +171,8 @@ E6:
 	-RenderInfantry:
 	RenderInfantryProne:
 		IdleAnimations: idle1,idle2
+	RevealsShroud:
+		Range: 6
 
 SPY:
 	Inherits: ^Infantry
@@ -184,7 +194,7 @@ SPY:
 	Mobile:
 		Speed: 4
 	RevealsShroud:
-		Range: 5
+		Range: 12
 	Passenger:
 		PipType: Yellow
 	TakeCover:
@@ -216,7 +226,7 @@ E7:
 	Mobile:
 		Speed: 5
 	RevealsShroud:
-		Range: 6
+		Range: 9
 	C4Demolition:
 		C4Delay: 45
 	Passenger:
@@ -249,7 +259,7 @@ MEDI:
 	Mobile:
 		Speed: 4
 	RevealsShroud:
-		Range: 3
+		Range: 6
 	Passenger:
 		PipType: Yellow
 	AutoHeal:
@@ -277,7 +287,7 @@ C1:
 	Mobile:
 		Speed: 4
 	RevealsShroud:
-		Range: 2
+		Range: 6
 	AttackFrontal:
 		PrimaryWeapon: Pistol
 	ProximityCaptor:
@@ -297,7 +307,7 @@ C2:
 	Mobile:
 		Speed: 4
 	RevealsShroud:
-		Range: 2
+		Range: 6
 	AttackFrontal:
 		PrimaryWeapon: Pistol
 	-ProximityCaptor:
@@ -323,7 +333,7 @@ SHOK:
 	Mobile:
 		Speed: 3
 	RevealsShroud:
-		Range: 4
+		Range: 6
 	AttackFrontal:
 		PrimaryWeapon: PortaTesla
 		PrimaryOffset: 0,-10,0,-8
