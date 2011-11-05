@@ -117,6 +117,28 @@ namespace OpenRA.Mods.RA.AI
 		{
 			var buildableThings = queue.BuildableItems();
 			if (buildableThings.Count() == 0) return null;
+
+			double[] weight = new double[buildableThings.Count()];
+			double maxweight=0;
+
+			for (int i = 0; i < buildableThings.Count(); ++i)
+			{
+				if (this.Info.UnitsToBuild.ContainsKey(buildableThings.ElementAt(i).Name))
+				{
+					weight[i] = this.Info.UnitsToBuild[buildableThings.ElementAt(i).Name];
+					maxweight += weight[i];
+				} 
+			}
+
+			double j = random.NextDouble() * maxweight;
+
+			for (int i = 0; i < buildableThings.Count(); ++i)
+			{
+				j-=weight[i];
+				if (j<=0)
+					return buildableThings.ElementAtOrDefault(i);
+			}
+
 			return buildableThings.ElementAtOrDefault(random.Next(buildableThings.Count()));
 		}
 
@@ -124,7 +146,8 @@ namespace OpenRA.Mods.RA.AI
 		{
 			/* note: CNC `fact` provides a small amount of power. don't get jammed because of that. */
 			return playerPower.PowerProvided > 50 &&
-				playerPower.PowerProvided > playerPower.PowerDrained * 1.2;
+				(playerPower.PowerProvided > playerPower.PowerDrained * 1.2 ||
+				playerPower.PowerProvided > playerPower.PowerDrained + 200);
 		}
 
 		ActorInfo ChooseBuildingToBuild(ProductionQueue queue, bool buildPower)
@@ -147,9 +170,14 @@ namespace OpenRA.Mods.RA.AI
 
 			foreach (var frac in Info.BuildingFractions)
 				if (buildableThings.Any(b => b.Name == frac.Key))
-					if (myBuildings.Count(a => a == frac.Key) < frac.Value * myBuildings.Length &&
-						playerPower.ExcessPower >= Rules.Info[frac.Key].Traits.Get<BuildingInfo>().Power)
-						return Rules.Info[frac.Key];
+					if (myBuildings.Count(a => a == frac.Key) < frac.Value * myBuildings.Length)
+					{
+						if (playerPower.ExcessPower >= Rules.Info[frac.Key].Traits.Get<BuildingInfo>().Power)
+							return Rules.Info[frac.Key];
+						else
+							return buildableThings.Where(a => GetPowerProvidedBy(a) > 0)
+								.OrderByDescending(a => GetPowerProvidedBy(a)).FirstOrDefault();
+					}
 
 			return null;
 		}
