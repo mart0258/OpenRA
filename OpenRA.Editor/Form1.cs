@@ -235,8 +235,13 @@ namespace OpenRA.Editor
 			saveAsToolStripMenuItem.Enabled = true;
 			mnuMinimapToPNG.Enabled = true;	// todo: what is this VB naming bullshit doing here?
 
+			PopulateActorOwnerChooser();
+		}
+
+		void PopulateActorOwnerChooser()
+		{
 			actorOwnerChooser.Items.Clear();
-			actorOwnerChooser.Items.AddRange(map.Players.Values.ToArray());
+			actorOwnerChooser.Items.AddRange(surface1.Map.Players.Values.ToArray());
 			actorOwnerChooser.SelectedIndex = 0;
 			surface1.NewActorOwner = (actorOwnerChooser.SelectedItem as PlayerReference).Name;
 		}
@@ -414,11 +419,15 @@ namespace OpenRA.Editor
 
 		void ExportMinimap(object sender, EventArgs e)
 		{
-			saveFileDialog.InitialDirectory = Path.Combine(Environment.CurrentDirectory, "maps");
-			saveFileDialog.FileName = Path.ChangeExtension(loadedMapName, ".png");
-
-			if (DialogResult.OK == saveFileDialog.ShowDialog())
-				pmMiniMap.Image.Save(saveFileDialog.FileName);
+			using( var sfd = new SaveFileDialog() { 
+				InitialDirectory = Path.Combine(Environment.CurrentDirectory, "maps"),
+				DefaultExt = "*.png",
+				Filter = "PNG Image (*.png)|*.png",
+				Title = "Export Minimap to PNG",
+				FileName = Path.ChangeExtension(loadedMapName, ".png"),
+				RestoreDirectory = true } )
+				if (DialogResult.OK == sfd.ShowDialog())
+					pmMiniMap.Image.Save(sfd.FileName);
 		}
 
 		void ShowActorNamesClicked(object sender, EventArgs e)
@@ -461,6 +470,8 @@ namespace OpenRA.Editor
 
 			surface1.Chunks.Clear();
 			surface1.Invalidate();
+
+			PopulateActorOwnerChooser();
 		}
 
 		void onDrawPlayerItem(object sender, DrawItemEventArgs e)
