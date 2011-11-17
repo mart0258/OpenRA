@@ -38,15 +38,6 @@ namespace OpenRA
 			}
 		}
 
-		static IEnumerable<MiniYaml> GetInheritanceChain(MiniYaml node, Dictionary<string, MiniYaml> allUnits)
-		{
-			while (node != null)
-			{
-				yield return node;
-				node = GetParent(node, allUnits);
-			}
-		}
-
 		static MiniYaml GetParent( MiniYaml node, Dictionary<string, MiniYaml> allUnits )
 		{
 			MiniYaml inherits;
@@ -130,8 +121,7 @@ namespace OpenRA
 
 			return inits.Select(
 				i => Pair.New(
-					i.GetType().Name.Replace( "Init", "" ),
-					i.GetType().GetInterfaces()[0].GetGenericArguments()[0] ) );
+					i.Name.Replace( "Init", "" ), i ));
 		}
 	}
 }
