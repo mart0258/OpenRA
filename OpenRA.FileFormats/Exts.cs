@@ -142,7 +142,6 @@ namespace OpenRA
 		public static T Random<T>(this IEnumerable<T> ts, Thirdparty.Random r)
 		{
 			var xs = ts.ToArray();
-            if (xs.Length == 0) return default(T);
 			return xs[r.Next(xs.Length)];
 		}
 
