@@ -76,7 +76,7 @@ namespace OpenRA.Mods.RA.AI
 		XRandom random = new XRandom(); //we do not use the synced random number generator.
 		BaseBuilder[] builders;
 
-		const int MaxBaseDistance = 15;
+		const int MaxBaseDistance = 20;
 		public const int feedbackTime = 30;		// ticks; = a bit over 1s. must be >= netlag.
 
 		public World world { get { return p.PlayerActor.World; } }
@@ -258,8 +258,14 @@ namespace OpenRA.Mods.RA.AI
 				.Where(a => a.Owner == enemy && a.HasTrait<IOccupySpace>())
 				.Random(random);
 
-			if (target == null)
-				return null;
+            if (target == null)
+            {
+                /* Assume that "enemy" has nothing. Cool off on attacks. */
+                aggro[enemy].Aggro -= 2;
+                Log.Write("debug", "Bot {0} couldn't find target for player {1}", this.p.ClientIndex, enemy.ClientIndex);
+
+                return null;
+            }
 
 			return target.Location;
 		}
