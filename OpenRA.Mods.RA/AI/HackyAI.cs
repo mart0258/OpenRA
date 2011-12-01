@@ -197,7 +197,7 @@ namespace OpenRA.Mods.RA.AI
 					if (world.CanPlaceBuilding(actorType, bi, t, null))
 						if (bi.IsCloseEnoughToBase(world, p, actorType, t))
 							if (NoBuildingsUnder(Util.ExpandFootprint(
-								FootprintUtils.Tiles(actorType, bi, t), false)))
+								FootprintUtils.UnpathableTiles(actorType, bi, t), false)))
 								return t;
 
 			return null;		// i don't know where to put it.
@@ -249,28 +249,26 @@ namespace OpenRA.Mods.RA.AI
 
 			var enemy = leastLikedEnemies != null ? leastLikedEnemies.Random(random) : null;
 
-			/* pick something worth attacking owned by that player */
-			var targets = world.Actors
-				.Where(a => a.Owner == enemy && a.HasTrait<IOccupySpace>());
-			Actor target=null;
-
-			if (targets.Count()>0)
-				target = targets.Random(random);
-
-			if (target == null)
+			try
 			{
-				/* Assume that "enemy" has nothing. Cool off on attacks. */
+				/* pick something worth attacking owned by that player */
+				var target = world.Actors
+					.Where(a => a.Owner == enemy && a.HasTrait<IOccupySpace>()).Random(random);
+
+				/* bump the aggro slightly to avoid changing our mind */
+				if (leastLikedEnemies.Count() > 1)
+					aggro[enemy].Aggro++;
+
+				return target.Location;
+			}
+			catch (System.DivideByZeroException)
+			{
+				/* Exception occurrs if the selected enemy has no targets.  */
 				aggro[enemy].Aggro = aggro[enemy].Aggro / 2 - 1;
 				Log.Write("debug", "Bot {0} couldn't find target for player {1}", this.p.ClientIndex, enemy.ClientIndex);
-
-				return null;
 			}
 
-			/* bump the aggro slightly to avoid changing our mind */
-			if (leastLikedEnemies.Count() > 1)
-				aggro[enemy].Aggro++;
-
-			return target.Location;
+			return null;
 		}
 
 		int assignRolesTicks = 0;
