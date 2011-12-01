@@ -107,6 +107,10 @@
     <Compile Include="Air\ReturnOnIdle.cs" />
     <Compile Include="Air\ReturnToBase.cs" />
     <Compile Include="Air\TargetableAircraft.cs" />
+    <Compile Include="AI\TestAI.cs" />
+    <Compile Include="AI\TestBaseBuilder.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="AnnounceOnBuild.cs" />
     <Compile Include="AnnounceOnKill.cs" />
     <Compile Include="AppearsOnRadar.cs" />

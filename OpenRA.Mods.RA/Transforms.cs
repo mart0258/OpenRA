@@ -46,7 +46,7 @@ namespace OpenRA.Mods.RA
 			return (order.OrderString == "DeployTransform") ? "Move" : null;
 		}
 
-		bool CanDeploy()
+		public bool CanDeploy()
 		{
 			return (bi == null || self.World.CanPlaceBuilding(Info.IntoActor, bi, self.Location + Info.Offset, self));
 		}

@@ -43,12 +43,19 @@ namespace OpenRA.Mods.RA.AI
 		bool enabled;
 		public Player p;
 	
-		private int ticks;
+		public int ticks;
 		private int timer_mcv;
+		private int timer_queue;
+		private int timer_units;
+		private int timer_super;
+		private int timer_map;
+
+		XRandom random = new XRandom(); //we do not use the synced random number generator.
 
 		//private Player p;
 
 		int2 baseCenter;
+		bool baseReady;
 
 		public World world { get { return this.p.PlayerActor.World; } }
 
@@ -57,9 +64,15 @@ namespace OpenRA.Mods.RA.AI
             this.Info = inf;
 
 			timer_mcv = 10;
+			timer_queue = 20;
+			timer_units = 30;
+			timer_super = 40;
+			timer_map = 50;
         }
         public void Tick(Actor self)
         {
+			if (!enabled)
+				return;
 			++ticks;
 
 			if (ticks >= timer_mcv)
@@ -78,22 +91,29 @@ namespace OpenRA.Mods.RA.AI
 					timer_mcv += 120;
 				}
 			}
-        }
-        public void Damaged(Actor self, AttackInfo e)
-        {
-        }
+			if (ticks >= timer_queue)
+			{
+				/* Check through the building queues to see what should be done. */
+				timer_queue += 15;
+				ai_CheckBuildQueue();
+			}
 
-        public void Activate(Player pl)
-        {
-			this.p = pl;
+			if (ticks >= timer_units)
+			{
+				timer_units += 30; 
+			}
 
-			enabled = true;
+			if (ticks >= timer_super)
+			{
+				timer_super += 60;
+			} 
+			if (ticks >= timer_map)
+			{
+				timer_map += 60;
+			}
+		}
 
-			//builders = new BaseBuilder[] {
-			//	new BaseBuilder( this, "Building", q => ChooseBuildingToBuild(q, true) ),
-			//	new BaseBuilder( this, "Defense", q => ChooseBuildingToBuild(q, false) ) };
-        }
-
+		#region MCV specific
 		bool DeployMcv(Actor self)
 		{
 			/* find our mcv and deploy it */
@@ -102,21 +122,34 @@ namespace OpenRA.Mods.RA.AI
 
 			if (mcv != null)
 			{
-				Order ord = new Order("DeployTransform", mcv, false);
 				/* Look for a deployable position if it doenst work here.. */
 				Transforms T = mcv.TraitOrDefault<Transforms>();
 
-				if (!T.CanDeploy())
+				if (mcv.IsIdle)
 				{
-					if (mcv.IsIdle)
+					if (!T.CanDeploy())
 					{
-						world.IssueOrder(new Order("Move", mcv, false) { TargetLocation = baseCenter });
+						/* TODO: Check for hostiles near the baseCenter - if they last too long, then deploy somewhere else. */
+						if (baseReady && baseCenter != mcv.Location)
+						{
+							world.IssueOrder(new Order("Move", mcv, false) { TargetLocation = baseCenter });
+							return true;
+						}
+						if (baseReady && baseCenter == mcv.Location)
+						{
+							baseReady = false;
+							int2? target = ChooseBuildLocation("FACT", mcv.Location);
+							if (target == null) return false;
+							world.IssueOrder(new Order("Move", mcv, false) { TargetLocation = (int2)target });
+							return true;
+						}
 					}
+
+					baseCenter = mcv.Location;
+					baseReady = true;
+					world.IssueOrder(new Order("DeployTransform", mcv, false));
 					return true;
 				}
-				baseCenter = mcv.Location;
-				world.IssueOrder(ord);
-				return true;
 			}
 			else
 			{
@@ -124,6 +157,188 @@ namespace OpenRA.Mods.RA.AI
 			}
 			return false;
 		}
+		#endregion
+
+		#region Building Management
+		TestBaseBuilder[] builders;
+
+		PowerManager playerPower;
+
+		private void ai_CheckBuildQueue()
+		{
+			playerPower = p.PlayerActor.Trait<PowerManager>();
+
+			/* For each building queue:
+			 * * Check if something can be built. 
+			 * * Choose an option randomly, or weighted.
+			 * * Verify if there are enough funds/power/etc. 
+			 */ 
+
+			/* For each completed building in building queue:
+			 * * search for possible location to place.
+			 * * Buildings with "weapons" should be placed between base and enemy...
+			 * * When placing a building, there should be a 1-tile gap around it.  This ignores the "bib". 
+			 */
+
+			if (builders == null)
+			{
+				builders = new TestBaseBuilder[] {
+					new TestBaseBuilder( this, "Building", q => ChooseBuildingToBuild(q, true) ),
+					new TestBaseBuilder( this, "Defense", q => ChooseBuildingToBuild(q, false) ) };
+			}
+
+			foreach (var b in builders)
+				b.Tick();
+
+			/* TODO: Check if construction should be cancelled:
+			 * Building an item that requires power when there's insufficient power
+			 * Building something when low on funds, but a refinery/ore miner should be contructed instead.  
+			 */
+
+			/* TODO: Check if buildings should be sold. 
+			 * Obviously for emergancies, but only to build an ore minter/refinery.  
+			 */ 
+		}
+
+		/** 
+		 * ai_priority_cash: Inhibits production of units and buildings not related to money.
+		 * 
+		 * */
+		private bool ai_priority_cash;
+
+		ActorInfo ChooseBuildingToBuild(ProductionQueue queue, bool buildPower)
+		{
+			var buildableThings = queue.BuildableItems();
+
+			if (!HasAdequatePower())	/* try to maintain 20% excess power */
+			{
+				if (!buildPower) return null;
+
+				/* find the best thing we can build which produces power */
+				return buildableThings.Where(a => GetPowerProvidedBy(a) > 0)
+					.OrderByDescending(a => GetPowerProvidedBy(a)).FirstOrDefault();
+			}
+
+			/* TODO: Handle Priority building for miners or refineries */
+			var myMiners = p.World
+				.ActorsWithTrait<Harvester>()
+				.Where(a => a.Actor.Owner == p)
+				.Select(a => a.Actor.Info.Name).ToArray();
+			var myRefineries = p.World
+				.ActorsWithTrait<OreRefinery>()
+				.Where (a => a.Actor.Owner == p)
+				.Select(a => a.Actor.Info.Name).ToArray();
+			/*
+			if (myRefineries.Count() == 0 || myMiners.Count() == 0)
+			{
+				ai_priority_cash = true;
+				return buildableThings.Where(a => a.Traits.GetOrDefault<BuildingInfo>(). != null)
+					.FirstOrDefault();
+			}
+			*/
+			ai_priority_cash = false;
+			
+			
+			var myBuildings = p.World
+				.ActorsWithTrait<Building>()
+				.Where(a => a.Actor.Owner == p)
+				.Select(a => a.Actor.Info.Name).ToArray();
+			 
+			/*
+			foreach (var frac in Info.BuildingFractions)
+				if (buildableThings.Any(b => b.Name == frac.Key))
+					if (myBuildings.Count(a => a == frac.Key) < frac.Value * myBuildings.Length)
+					{
+						if (playerPower.ExcessPower >= Rules.Info[frac.Key].Traits.Get<BuildingInfo>().Power)
+							return Rules.Info[frac.Key];
+						else
+							return buildableThings.Where(a => GetPowerProvidedBy(a) > 0)
+								.OrderByDescending(a => GetPowerProvidedBy(a)).FirstOrDefault();
+					}
+			*/
+
+			/* Final step: Pick a building we don't have. */
+			foreach (var bInfo in buildableThings.Shuffle(random))
+				if (myBuildings.Count(a => a == bInfo.Name) == 0)
+				{
+					if (playerPower.ExcessPower >= Rules.Info[frac.Key].Traits.Get<BuildingInfo>().Power &&
+						ChooseBuildLocation(bInfo.Name) != null)
+						return bInfo;
+				}
+
+			return null;
+		}
+
+		bool HasAdequatePower()
+		{
+			/* note: CNC `fact` provides a small amount of power. don't get jammed because of that. */
+			return playerPower.PowerProvided > 50 &&
+				(playerPower.PowerProvided > playerPower.PowerDrained * 1.2 ||
+				playerPower.PowerProvided > playerPower.PowerDrained + 200);
+		}
+
+		int GetPowerProvidedBy(ActorInfo building)
+		{
+			var bi = building.Traits.GetOrDefault<BuildingInfo>();
+			if (bi == null) return 0;
+			return bi.Power;
+		}
+		internal IEnumerable<ProductionQueue> FindQueues(string category)
+		{
+			return world.ActorsWithTrait<ProductionQueue>()
+				.Where(a => a.Actor.Owner == p && a.Trait.Info.Type == category)
+				.Select(a => a.Trait);
+		}
+
+		public int2? ChooseBuildLocation(string actorType, int2 position)
+		{
+			/* TODO: If building has a weapon, locate a better position for it rather than the outword spiral. */
+			int MaxBaseDistance = 25;
+			var bi = Rules.Info[actorType].Traits.Get<BuildingInfo>();
+
+			for (var k = 0; k < MaxBaseDistance; k++)
+			{
+				var tiles = world.FindTilesInCircle(position, k).Shuffle(random);
+
+				foreach (var t in tiles)
+					if (world.CanPlaceBuilding(actorType, bi, t, null))
+						if (bi.IsCloseEnoughToBase(world, p, actorType, t))
+							if (NoBuildingsUnder(Util.ExpandFootprint(
+								FootprintUtils.UnpathableTiles(actorType, bi, t), false)))
+								return t;
+			}
+
+			return null;		// i don't know where to put it.
+		}
+		public int2? ChooseBuildLocation(string actorType)
+		{
+			return ChooseBuildLocation(actorType, baseCenter);
+		}
+
+		bool NoBuildingsUnder(IEnumerable<int2> cells)
+		{
+			var bi = world.WorldActor.Trait<BuildingInfluence>();
+			return cells.All(c => bi.GetBuildingAt(c) == null);
+		}
+
+		#endregion
+
+
+		public void Damaged(Actor self, AttackInfo e)
+        {
+        }
+
+        public void Activate(Player pl)
+        {
+			this.p = pl;
+			enabled = true;
+
+			//builders = new BaseBuilder[] {
+			//	new BaseBuilder( this, "Building", q => ChooseBuildingToBuild(q, true) ),
+			//	new BaseBuilder( this, "Defense", q => ChooseBuildingToBuild(q, false) ) };
+        }
+
+
 
         IBotInfo IBot.Info { get { return Info; } }
     }
