@@ -249,26 +249,28 @@ namespace OpenRA.Mods.RA.AI
 
 			var enemy = leastLikedEnemies != null ? leastLikedEnemies.Random(random) : null;
 
-			try
-			{
-				/* pick something worth attacking owned by that player */
-				var target = world.Actors
-					.Where(a => a.Owner == enemy && a.HasTrait<IOccupySpace>()).Random(random);
+			/* pick something worth attacking owned by that player */
+			var targets = world.Actors
+				.Where(a => a.Owner == enemy && a.HasTrait<IOccupySpace>());
+			Actor target=null;
 
-				/* bump the aggro slightly to avoid changing our mind */
-				if (leastLikedEnemies.Count() > 1)
-					aggro[enemy].Aggro++;
+			if (targets.Count()>0)
+				target = targets.Random(random);
 
-				return target.Location;
-			}
-			catch (System.DivideByZeroException)
+			if (target == null)
 			{
-				/* Exception occurrs if the selected enemy has no targets.  */
+				/* Assume that "enemy" has nothing. Cool off on attacks. */
 				aggro[enemy].Aggro = aggro[enemy].Aggro / 2 - 1;
 				Log.Write("debug", "Bot {0} couldn't find target for player {1}", this.p.ClientIndex, enemy.ClientIndex);
-			}
 
 			return null;
+			}
+
+			/* bump the aggro slightly to avoid changing our mind */
+			if (leastLikedEnemies.Count() > 1)
+				aggro[enemy].Aggro++;
+
+			return target.Location;
 		}
 
 		int assignRolesTicks = 0;

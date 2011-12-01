@@ -60,6 +60,8 @@ namespace OpenRA.GameRules
 		public int2 FullscreenSize = new int2(0,0);
 		public int2 WindowedSize = new int2(1024, 768);
 		public bool PixelDouble = false;
+		public bool CapFramerate = false;
+		public int MaxFramerate = 60;
 
 		public int BatchSize = 8192;
 		public int NumTempBuffers = 8;
@@ -139,7 +141,6 @@ namespace OpenRA.GameRules
 
 			if (File.Exists(SettingsFile))
 			{
-				//Console.WriteLine("Loading settings file {0}",SettingsFile);
 				var yaml = MiniYaml.DictFromFile(SettingsFile);
 
 				foreach (var kv in Sections)
@@ -168,11 +169,11 @@ namespace OpenRA.GameRules
 
 		void LoadSectionYaml(MiniYaml yaml, object section)
 		{
-			object defaults = Activator.CreateInstance(section.GetType());
+			var defaults = Activator.CreateInstance(section.GetType());
 			FieldLoader.InvalidValueAction = (s,t,f) =>
 			{
-				object ret = defaults.GetType().GetField(f).GetValue(defaults);
-				System.Console.WriteLine("FieldLoader: Cannot parse `{0}` into `{2}:{1}`; substituting default `{3}`".F(s,t.Name,f,ret) );
+				var ret = defaults.GetType().GetField(f).GetValue(defaults);
+				Console.WriteLine("FieldLoader: Cannot parse `{0}` into `{2}:{1}`; substituting default `{3}`".F(s,t.Name,f,ret) );
 				return ret;
 			};
 
