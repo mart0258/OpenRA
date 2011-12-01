@@ -366,6 +366,7 @@ namespace OpenRA.Mods.RA.Server
 					s =>
 					{
 						var parts = s.Split(' ');
+                        if (parts[0]=="") return true;
 						var targetClient = server.lobbyInfo.ClientWithIndex(int.Parse(parts[0]));
 
 						// Only the host can change other client's info
