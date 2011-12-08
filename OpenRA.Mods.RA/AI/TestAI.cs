@@ -50,6 +50,8 @@ namespace OpenRA.Mods.RA.AI
 		private int timer_super;
 		private int timer_map;
 
+		private float[,] aggroGrid;
+
 		XRandom random = new XRandom(); //we do not use the synced random number generator.
 
 		//private Player p;
@@ -63,11 +65,11 @@ namespace OpenRA.Mods.RA.AI
         {
             this.Info = inf;
 
-			timer_mcv = 10;
-			timer_queue = 20;
-			timer_units = 30;
-			timer_super = 40;
-			timer_map = 50;
+			timer_mcv = 10+random.Next(60);
+			timer_queue = 20 + random.Next(60);
+			timer_units = 30 + random.Next(60);
+			timer_super = 40 + random.Next(60);
+			timer_map = 50 + random.Next(60);
         }
         public void Tick(Actor self)
         {
@@ -75,7 +77,7 @@ namespace OpenRA.Mods.RA.AI
 				return;
 			++ticks;
 
-			if (ticks >= timer_mcv)
+			if (ticks >= timer_mcv || ticks==10)
 			{
 				/* Deploy an MCV if we don't have one. */
 				var mcv = self.World.Actors
@@ -91,7 +93,7 @@ namespace OpenRA.Mods.RA.AI
 					timer_mcv += 120;
 				}
 			}
-			if (ticks >= timer_queue)
+			if (ticks >= timer_queue || ticks==20)
 			{
 				/* Check through the building queues to see what should be done. */
 				timer_queue += 15;
@@ -100,12 +102,15 @@ namespace OpenRA.Mods.RA.AI
 
 			if (ticks >= timer_units)
 			{
-				timer_units += 30; 
+				timer_units += 30;
+				ai_checkUnits();
 			}
 
 			if (ticks >= timer_super)
 			{
 				timer_super += 60;
+
+				ai_supportPowers();
 			} 
 			if (ticks >= timer_map)
 			{
@@ -258,10 +263,10 @@ namespace OpenRA.Mods.RA.AI
 			*/
 
 			/* Final step: Pick a building we don't have. */
-			foreach (var bInfo in buildableThings.Shuffle(random))
+			var bInfo = buildableThings.Random(random);
 				if (myBuildings.Count(a => a == bInfo.Name) == 0)
 				{
-					if (playerPower.ExcessPower >= Rules.Info[frac.Key].Traits.Get<BuildingInfo>().Power &&
+					if (playerPower.ExcessPower >= Rules.Info[bInfo.Name].Traits.Get<BuildingInfo>().Power &&
 						ChooseBuildLocation(bInfo.Name) != null)
 						return bInfo;
 				}
@@ -323,15 +328,194 @@ namespace OpenRA.Mods.RA.AI
 
 		#endregion
 
+		#region Unit Management
 
+		Cache<aiGroups, List<Actor>> controlGroups = new Cache<aiGroups, List<Actor>>(_ => new List<Actor>());
+		enum aiGroups
+		{
+			GROUP_DEFENSE, /* Unassigned units, or those responsible for defense */
+			GROUP_ASSAULT, /* Responsible for a direct attack. */
+			GROUP_FLANK, /* Responsible for hitting weak targets */
+			GROUP_SIEGE, /* Engages with artillery at maximum range; non-artillery only attack if the enemy approahces. */
+			GROUP_NAVAL, /* Responsible for Naval engagements */
+			GROUP_AIRCRAFT, /* Responsible for aerial attacks */
+
+			GROUP_HARVESTER, /* Harvesters, and their escorts */
+			GROUP_MCV, /* MCVs */
+
+			GROUP_SPECIAL_ASSAULT, /* Units in this group are part of assault, but are busy because of an order. */
+			GROUP_SPECIAL_FLANK, /* Units in this group are part of assault, but are busy because of an order. */
+
+		}
+
+		List<Actor> allUnits = new List<Actor>();
+
+		void ai_checkUnits()
+		{
+			allUnits.RemoveAll(a => a.Destroyed);
+			
+			foreach (var unitGroup in controlGroups)
+			{
+				unitGroup.Value.RemoveAll(a => a.Destroyed);
+			}
+
+			var newUnits = p.PlayerActor.World.ActorsWithTrait<IMove>()
+				.Where(a => a.Actor.Owner == p
+					&& !allUnits.Contains(a.Actor))
+					.Select(a => a.Actor).ToArray();
+	
+			/* Todo: properly assign units to their groups. */
+			controlGroups[aiGroups.GROUP_DEFENSE].AddRange(allUnits);
+
+			ai_checkDefenseGroup();
+		}
+
+		private bool ai_baseAttacked;
+		private int2 ai_baseAttackLocation;
+
+		private void ai_checkDefenseGroup()
+		{
+			/* TODO: Move the units to a random point in the base, weighted by chance an enemy will attack from there. */
+			/* .5 chance it waits at the "frontal position"
+			 * .25 chance it waits at one of the flanks
+			 * .25 chance it picks a random point.
+			 */
+
+			/* Select a random building. */
+
+
+		}
+
+		#endregion
+
+		#region Support Powers
+
+		private void ai_supportPowers()
+		{
+			var manager = p.PlayerActor.Trait<SupportPowerManager>();
+			var powers = manager.Powers.Where(pow => !pow.Value.Disabled);
+			var numPowers = powers.Count();
+			if (numPowers == 0) return;
+
+			foreach (var power in powers)
+			{
+				if (!power.Value.Ready) continue;
+
+				Order order = null;
+				int2? target = null;
+				
+
+				switch (power.Key)
+				{
+					case "AirstrikePowerInfoOrder":
+						target = ai_findAirstrkeLocation();
+						if (target != null)
+						{
+							order = new Order(power.Key, p.PlayerActor, false) { TargetLocation = (int2)target };
+						} 
+						break; 
+					case "ChronoshiftPowerInfoOrder":
+						break;
+					case "GpsPowerInfoOrder":
+						break;
+					case "IronCurtainPowerInfoOrder":
+						break;
+					case "NukePowerInfoOrder":
+						target= ai_findAirstrkeLocation();
+						if (target != null)
+						{
+							order = new Order(power.Key, p.PlayerActor, false) { TargetLocation = (int2)target };
+						}
+						break;
+					case "ParatroopersPowerInfoOrder":
+						target = ai_findAirstrkeLocation();
+						if (target != null)
+						{
+							order = new Order(power.Key, p.PlayerActor, false) { TargetLocation = (int2)target };
+						}
+						break;
+					case "SonarPulsePowerInfoOrder":
+						break;
+					case "SpyPlanePowerInfoOrder":
+						target = ai_findAirstrkeLocation();
+						if (target != null)
+						{
+							order = new Order(power.Key, p.PlayerActor, false) { TargetLocation = (int2)target };
+						} 
+						break;
+					default:
+						break;
+				}
+				if (order!=null)
+					world.IssueOrder(order);
+			}
+		}
+
+		private int2? ai_findAirstrkeLocation()
+		{
+			var liveEnemies = world.Players
+				.Where(q => p != q && p.Stances[q] == Stance.Enemy)
+				.Where(q => p.WinState == WinState.Undefined && q.WinState == WinState.Undefined);
+
+			/* TODO: More intelligent selection of targets */
+			var targets = world.Actors
+				.Where(a => a.Owner.Stances[p] == Stance.Enemy && a.HasTrait<IOccupySpace>());
+				Actor target = null;
+
+			if (targets.Count() > 0)
+			{
+				target = targets.Random(random);
+				return target.Location;
+			}
+			
+			return null;
+		}
+		#endregion
+
+		#region Aggro Management
+		private void ai_addAggro(int x, int y, float amount)
+		{
+			/* TODO: Add Aggro */
+		}
+		#endregion
 		public void Damaged(Actor self, AttackInfo e)
-        {
-        }
+		{
+			if (!enabled) return;
+
+			/* React to base being attacked. */
+			if (self.HasTrait<Building>())
+			{
+				ai_baseAttacked = true;
+				ai_baseAttackLocation = e.Attacker.CenterLocation;
+			}
+			/* React to harvester attacks. */
+			if (self.HasTrait<Harvester>())
+			{
+				ai_baseAttacked = true;
+				ai_baseAttackLocation = self.CenterLocation;
+			}
+
+			/* Add Aggro */
+			var health = self.TraitOrDefault<Health>();
+			if (health != null)
+			{
+				var valued = self.Info.Traits.GetOrDefault<ValuedInfo>();
+				var cost = valued != null ? valued.Cost : 0;
+
+				ai_addAggro(e.Attacker.CenterLocation.X, e.Attacker.CenterLocation.Y,
+					cost * e.Damage / health.MaxHP);
+				ai_addAggro(self.CenterLocation.X, self.CenterLocation.Y,
+					cost * e.Damage / health.MaxHP);
+			}
+		}
 
         public void Activate(Player pl)
         {
 			this.p = pl;
 			enabled = true;
+
+			aggroGrid = new float[world.Map.Bounds.Width, world.Map.Bounds.Height];
+
 
 			//builders = new BaseBuilder[] {
 			//	new BaseBuilder( this, "Building", q => ChooseBuildingToBuild(q, true) ),
