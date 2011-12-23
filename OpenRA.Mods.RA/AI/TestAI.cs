@@ -189,7 +189,7 @@ namespace OpenRA.Mods.RA.AI
 			{
 				builders = new TestBaseBuilder[] {
 					new TestBaseBuilder( this, "Building", q => ChooseBuildingToBuild(q, true) ),
-					new TestBaseBuilder( this, "Defense", q => ChooseBuildingToBuild(q, false) ) };
+					new TestBaseBuilder( this, "Defense", q => ChooseDefenseToBuild(q) ) };
 			}
 
 			foreach (var b in builders)
@@ -270,6 +270,51 @@ namespace OpenRA.Mods.RA.AI
 						ChooseBuildLocation(bInfo.Name) != null)
 						return bInfo;
 				}
+
+			return null;
+		}
+
+		ActorInfo ChooseDefenseToBuild(ProductionQueue queue)
+		{
+			var buildableThings = queue.BuildableItems();
+
+			/* Maintain power, and cash */
+			if (!HasAdequatePower() || ai_priority_cash == true)
+			{
+				return null;
+			}
+
+			var myBuildingList = p.World
+				.ActorsWithTrait<Building>()
+				.Where(a => a.Actor.Owner == p);
+			var myBuildings = myBuildingList.Select(a => a.Actor.Info.Name).ToArray();
+
+			/* First check support buildings, such as chronosphere, iron curtain and silo. */
+
+			/* Next, build a defense that has a weapon, but only if one building has aggro.. */
+			foreach (var building in myBuildingList)
+			{
+				if (ai_getAggro(building.Actor.Location) > 0)
+				{
+					var buildableTurrets = buildableThings
+						.Where(a => a.Traits.GetOrDefault<AttackTurreted>() != null ||
+								a.Traits.GetOrDefault<AttackTesla>() != null);
+					if (buildableTurrets.Count() > 0)
+					{
+						/* TODO: Make better choice for defense. */
+						var bInfo = buildableTurrets.Random(random);
+
+						if (playerPower.ExcessPower >= Rules.Info[bInfo.Name].Traits.Get<BuildingInfo>().Power &&
+							ChooseBuildLocation(bInfo.Name) != null)
+							return bInfo;
+					}
+
+					break;
+				}
+			}
+
+			/* TODO: Check if some buildings could be walled off. Candidates include tesla. 
+			   Wait until at least a tech center is built. */
 
 			return null;
 		}
@@ -368,10 +413,65 @@ namespace OpenRA.Mods.RA.AI
 			controlGroups[aiGroups.GROUP_DEFENSE].AddRange(allUnits);
 
 			ai_checkDefenseGroup();
+
+			ai_buildUnits();
+		}
+
+		void ai_buildUnits()
+		{
+			string[] categories = { "Vehicle", "Infantry", "Plane" };
+			foreach (string category in categories)
+			{
+				var queue = FindQueues(category).FirstOrDefault(q => q.CurrentItem() == null);
+				if (queue == null)
+					return;
+
+				if (queue.BuildableItems().Count()>0)
+				{
+					var unit = queue.BuildableItems().Random(random);
+					world.IssueOrder(Order.StartProduction(queue.self, unit.Name, 1));
+				}
+				//var unit = ChooseRandomUnitToBuild(queue);
+				//if (unit != null && Info.UnitsToBuild.Any(u => u.Key == unit.Name))
+				//	world.IssueOrder(Order.StartProduction(queue.self, unit.Name, 1));
+			}
 		}
 
 		private bool ai_baseAttacked;
 		private int2 ai_baseAttackLocation;
+
+		private int ai_defenceLastTick;
+		private int ai_defenceAttackTick;
+		private int2 ai_defencePosition;
+
+		int2? ChooseDestinationNear(Actor a, int2 desiredMoveTarget)
+		{
+			var move = a.TraitOrDefault<IMove>();
+			if (move == null) return null;
+
+			int2 xy;
+			int loopCount = 0; //avoid infinite loops.
+			int range = 2;
+			do
+			{
+				//loop until we find a valid move location
+				xy = new int2(desiredMoveTarget.X + random.Next(-range, range), desiredMoveTarget.Y + random.Next(-range, range));
+				loopCount++;
+				range = Math.Max(range, loopCount / 2);
+				if (loopCount > 10) return null;
+			} while (!move.CanEnterCell(xy) && xy != a.Location);
+
+			return xy;
+		}
+
+		bool TryToMove(Actor a, int2 desiredMoveTarget, bool attackMove)
+		{
+			var xy = ChooseDestinationNear(a, desiredMoveTarget);
+			if (xy == null)
+				return false;
+			world.IssueOrder(new Order(attackMove ? "AttackMove" : "Move", a, false) { TargetLocation = xy.Value });
+			return true;
+		}
 
 		private void ai_checkDefenseGroup()
 		{
@@ -381,9 +481,38 @@ namespace OpenRA.Mods.RA.AI
 			 * .25 chance it picks a random point.
 			 */
 
-			/* Select a random building. */
+			if (ai_baseAttacked)
+			{
+				if (ticks - ai_defenceAttackTick < 60) return;
+				ai_defenceAttackTick = ticks;
 
+				/* TODO: Determine whether there's a greater concentration of enemies at the current location 
+				 * or where it's detecting an attack.  
+				 */
 
+				ai_defencePosition = ai_baseAttackLocation;
+
+			}
+			else
+			{
+
+				if (ticks - ai_defenceLastTick < 600) return;
+				ai_defenceLastTick = ticks;
+
+				var myBuildings = p.World
+					.ActorsWithTrait<Building>()
+					.Where(a => a.Actor.Owner == p);
+
+				var randBuilding = myBuildings.Random(random);
+
+				ai_defencePosition = randBuilding.Actor.CenterLocation;
+			}
+
+			/* Send units over. */
+			foreach (Actor a in controlGroups[aiGroups.GROUP_DEFENSE])
+			{
+				TryToMove(a, ai_defencePosition, true);
+			}
 		}
 
 		#endregion
@@ -473,39 +602,52 @@ namespace OpenRA.Mods.RA.AI
 		#endregion
 
 		#region Aggro Management
-		private void ai_addAggro(int x, int y, float amount)
+		private void ai_addAggro(int2 pos, float amount)
 		{
 			/* TODO: Add Aggro */
+			aggroGrid[pos.X, pos.Y] += amount;
+		}
+
+		private float ai_getAggro(int2 pos)
+		{
+			return aggroGrid[pos.X, pos.Y];
+		}
+
+		void ai_smoothAggro()
+		{
+			float[,] smoothGrid = new float[world.Map.Bounds.Width + world.Map.Bounds.X,
+				world.Map.Bounds.Height + world.Map.Bounds.Y];
+
 		}
 		#endregion
 		public void Damaged(Actor self, AttackInfo e)
 		{
 			if (!enabled) return;
 
+			var valued = self.Info.Traits.GetOrDefault<ValuedInfo>();
+			var cost = valued != null ? valued.Cost : 0;
+			var health = self.TraitOrDefault<Health>();
+
 			/* React to base being attacked. */
 			if (self.HasTrait<Building>())
 			{
 				ai_baseAttacked = true;
 				ai_baseAttackLocation = e.Attacker.CenterLocation;
+				ai_addAggro(self.CenterLocation, cost * e.Damage / health.MaxHP);
 			}
 			/* React to harvester attacks. */
 			if (self.HasTrait<Harvester>())
 			{
 				ai_baseAttacked = true;
 				ai_baseAttackLocation = self.CenterLocation;
+				ai_addAggro(self.CenterLocation, cost * e.Damage / health.MaxHP);
 			}
 
 			/* Add Aggro */
-			var health = self.TraitOrDefault<Health>();
 			if (health != null)
 			{
-				var valued = self.Info.Traits.GetOrDefault<ValuedInfo>();
-				var cost = valued != null ? valued.Cost : 0;
-
-				ai_addAggro(e.Attacker.CenterLocation.X, e.Attacker.CenterLocation.Y,
-					cost * e.Damage / health.MaxHP);
-				ai_addAggro(self.CenterLocation.X, self.CenterLocation.Y,
-					cost * e.Damage / health.MaxHP);
+				ai_addAggro(self.CenterLocation, cost * e.Damage / health.MaxHP);
+				ai_addAggro(self.CenterLocation, cost * e.Damage / health.MaxHP);
 			}
 		}
 
@@ -514,7 +656,8 @@ namespace OpenRA.Mods.RA.AI
 			this.p = pl;
 			enabled = true;
 
-			aggroGrid = new float[world.Map.Bounds.Width, world.Map.Bounds.Height];
+			aggroGrid = new float[world.Map.Bounds.Width + world.Map.Bounds.X,
+				world.Map.Bounds.Height + world.Map.Bounds.Y];
 
 
 			//builders = new BaseBuilder[] {
