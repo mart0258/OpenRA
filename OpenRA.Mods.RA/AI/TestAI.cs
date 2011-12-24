@@ -410,7 +410,7 @@ namespace OpenRA.Mods.RA.AI
 					.Select(a => a.Actor).ToArray();
 	
 			/* Todo: properly assign units to their groups. */
-			controlGroups[aiGroups.GROUP_DEFENSE].AddRange(allUnits);
+			controlGroups[aiGroups.GROUP_DEFENSE].AddRange(newUnits);
 
 			ai_checkDefenseGroup();
 
@@ -505,7 +505,7 @@ namespace OpenRA.Mods.RA.AI
 
 				var randBuilding = myBuildings.Random(random);
 
-				ai_defencePosition = randBuilding.Actor.CenterLocation;
+				ai_defencePosition = randBuilding.Actor.Location;
 			}
 
 			/* Send units over. */
@@ -632,22 +632,22 @@ namespace OpenRA.Mods.RA.AI
 			if (self.HasTrait<Building>())
 			{
 				ai_baseAttacked = true;
-				ai_baseAttackLocation = e.Attacker.CenterLocation;
-				ai_addAggro(self.CenterLocation, cost * e.Damage / health.MaxHP);
+				ai_baseAttackLocation = e.Attacker.Location;
+				ai_addAggro(self.Location, cost * e.Damage / health.MaxHP);
 			}
 			/* React to harvester attacks. */
 			if (self.HasTrait<Harvester>())
 			{
 				ai_baseAttacked = true;
-				ai_baseAttackLocation = self.CenterLocation;
-				ai_addAggro(self.CenterLocation, cost * e.Damage / health.MaxHP);
+				ai_baseAttackLocation = self.Location;
+				ai_addAggro(self.Location, cost * e.Damage / health.MaxHP);
 			}
 
 			/* Add Aggro */
 			if (health != null)
 			{
-				ai_addAggro(self.CenterLocation, cost * e.Damage / health.MaxHP);
-				ai_addAggro(self.CenterLocation, cost * e.Damage / health.MaxHP);
+				ai_addAggro(self.Location, cost * e.Damage / health.MaxHP);
+				ai_addAggro(self.Location, cost * e.Damage / health.MaxHP);
 			}
 		}
 
