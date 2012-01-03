@@ -115,6 +115,8 @@ namespace OpenRA.Mods.RA.AI
 			if (ticks >= timer_map)
 			{
 				timer_map += 60;
+
+				ai_updateAggro();
 			}
 		}
 
@@ -376,6 +378,8 @@ namespace OpenRA.Mods.RA.AI
 		#region Unit Management
 
 		Cache<aiGroups, List<Actor>> controlGroups = new Cache<aiGroups, List<Actor>>(_ => new List<Actor>());
+		Dictionary<aiGroups, int2> groupLocation = new Dictionary<aiGroups, int2>();
+		Dictionary<aiGroups, int> groupTick = new Dictionary<aiGroups, int>();
 		enum aiGroups
 		{
 			GROUP_DEFENSE, /* Unassigned units, or those responsible for defense */
@@ -408,11 +412,20 @@ namespace OpenRA.Mods.RA.AI
 				.Where(a => a.Actor.Owner == p
 					&& !allUnits.Contains(a.Actor))
 					.Select(a => a.Actor).ToArray();
+
 	
 			/* Todo: properly assign units to their groups. */
 			controlGroups[aiGroups.GROUP_DEFENSE].AddRange(newUnits);
 
+			var harvesters = newUnits.Where(a => a.HasTrait<Harvester>());
+
+			foreach (var unit in harvesters)
+			{
+				assignUnitToGroup(unit, aiGroups.GROUP_HARVESTER);
+			}
+
 			ai_checkDefenseGroup();
+			ai_groupAssaultTick();
 
 			ai_buildUnits();
 		}
@@ -473,6 +486,16 @@ namespace OpenRA.Mods.RA.AI
 			return true;
 		}
 
+		private void assignUnitToGroup(Actor a, aiGroups group)
+		{
+			foreach (var cg in controlGroups)
+			{
+				cg.Value.RemoveAll(b => b==a);
+			}
+
+			controlGroups[group].Add(a);
+		}
+
 		private void ai_checkDefenseGroup()
 		{
 			/* TODO: Move the units to a random point in the base, weighted by chance an enemy will attack from there. */
@@ -490,8 +513,11 @@ namespace OpenRA.Mods.RA.AI
 				 * or where it's detecting an attack.  
 				 */
 
+				groupLocation[aiGroups.GROUP_DEFENSE] = ai_baseAttackLocation;
 				ai_defencePosition = ai_baseAttackLocation;
 
+				if (ai_getAggro(ai_baseAttackLocation) < 1)
+					ai_baseAttacked = false;
 			}
 			else
 			{
@@ -506,15 +532,103 @@ namespace OpenRA.Mods.RA.AI
 				var randBuilding = myBuildings.Random(random);
 
 				ai_defencePosition = randBuilding.Actor.Location;
+				groupLocation[aiGroups.GROUP_DEFENSE] = randBuilding.Actor.Location;
 			}
 
 			/* Send units over. */
 			foreach (Actor a in controlGroups[aiGroups.GROUP_DEFENSE])
 			{
 				TryToMove(a, ai_defencePosition, true);
+
+				/* Reduce aggro when responding. */
+				if (ai_baseAttacked)
+				{
+					if ((a.Location - ai_defencePosition).Length < 5)
+					{
+						ai_addAggro(ai_defencePosition, -0.1f);
+					}
+				}
+
 			}
 		}
 
+		int2 assaultGroupTarget;
+		private bool ai_groupAssaultTick()
+		{
+			if (ticks < groupTick.GetOrAdd(aiGroups.GROUP_ASSAULT))
+			{
+				return false; 
+			}
+			var cg = controlGroups[aiGroups.GROUP_ASSAULT];
+
+			if (cg.Count() == 0)
+			{
+				/* Check if units can be added. */
+				groupTick[aiGroups.GROUP_ASSAULT] = ticks + random.Next(300, 900);
+
+				if (controlGroups[aiGroups.GROUP_DEFENSE].Count() < 10)
+					return false;
+
+				int value=0;
+				foreach (Actor a in controlGroups[aiGroups.GROUP_DEFENSE])
+				{
+					value += a.Info.Traits.GetOrDefault<ValuedInfo>().Cost;
+				}
+				/* TODO: Use flexible quota. */
+				if (value < 2500) return false;
+
+				groupLocation[aiGroups.GROUP_ASSAULT] = groupLocation[aiGroups.GROUP_DEFENSE];
+				int addValue=0;
+				while (addValue < value / 2 && controlGroups[aiGroups.GROUP_DEFENSE].Count()>0)
+				{
+					Actor a = controlGroups[aiGroups.GROUP_DEFENSE].Random(random);
+					addValue += a.Info.Traits.GetOrDefault<ValuedInfo>().Cost;
+					assignUnitToGroup(a, aiGroups.GROUP_ASSAULT);
+				}
+				groupTick[aiGroups.GROUP_ASSAULT] = ticks;
+			}
+			else if (cg.Count() > 0)
+			{
+				groupTick[aiGroups.GROUP_ASSAULT] = ticks + 180;
+				/* TODO: Locate greatest aggro point, and move towards it. */
+				float maxaggro = 0;
+				int2 maxpos = new int2(0, 0);
+				int2 pos ;
+
+				for (pos.X = world.Map.Bounds.X; pos.X < world.Map.Bounds.Right; ++pos.X)
+				{
+					for (pos.Y = world.Map.Bounds.Y; pos.Y < world.Map.Bounds.Bottom; ++pos.Y)
+					{
+						float caggro = ai_getAggro(pos);
+						if (caggro > maxaggro)
+						{
+							maxpos = pos;
+							maxaggro = caggro;
+						}
+					}
+				}
+				if (maxaggro > 0)
+				{
+					assaultGroupTarget = maxpos;
+				}
+				else
+				{
+					assaultGroupTarget = groupLocation[aiGroups.GROUP_DEFENSE];
+				}
+
+				/* TODO: Step more slowly when moving to a location far from base, 
+				 * and quickly if it's point-blank.*/
+				groupLocation[aiGroups.GROUP_ASSAULT] = assaultGroupTarget;
+
+				foreach (Actor a in controlGroups[aiGroups.GROUP_ASSAULT])
+				{
+					TryToMove(a, groupLocation[aiGroups.GROUP_ASSAULT], true);
+				}
+
+			}
+
+			return true;
+		}
 		#endregion
 
 		#region Support Powers
@@ -618,7 +732,63 @@ namespace OpenRA.Mods.RA.AI
 			float[,] smoothGrid = new float[world.Map.Bounds.Width + world.Map.Bounds.X,
 				world.Map.Bounds.Height + world.Map.Bounds.Y];
 
+			float[,] countGrid =  new float[world.Map.Bounds.Width + world.Map.Bounds.X,
+				world.Map.Bounds.Height + world.Map.Bounds.Y];
+
+			for (int x = world.Map.Bounds.X; x < world.Map.Bounds.Right; ++x)
+			{
+				for (int y = world.Map.Bounds.Y; y < world.Map.Bounds.Bottom; ++y)
+				{
+					countGrid[x,y]++;
+					smoothGrid[x, y] += aggroGrid[x, y];
+					for (int dx = x - 1; dx <= x + 1; ++dx)
+					{
+						for (int dy = y - 1; dy <= y + 1; ++dy)
+						{
+							if (dx < world.Map.Bounds.X || dx >= world.Map.Bounds.Right ||
+								dy < world.Map.Bounds.Y || dy >= world.Map.Bounds.Bottom)
+								continue;
+
+							/* TODO: Check terrian. */
+							countGrid[x, y] += 0.1f;
+							smoothGrid[x,y]+=aggroGrid[dx,dy]*0.1f;
+						}
+					}
+				}
+			}
+			for (int x = world.Map.Bounds.X; x < world.Map.Bounds.Right; ++x)
+			{
+				for (int y = world.Map.Bounds.Y; y < world.Map.Bounds.Bottom; ++y)
+				{
+					/* TODO: Add Decay rate */
+					aggroGrid[x,y]=smoothGrid[x,y]/countGrid[x,y];
+				}
+			}
 		}
+		private void ai_updateAggro()
+		{
+			var units = p.PlayerActor.World.Actors
+				.Where(a => a.HasTrait<IOccupySpace>())
+				.ToArray();
+
+			foreach (var unit in units)
+			{
+				if (this.p.Stances[unit.Owner] == Stance.Enemy)
+				{
+					/* TODO: Check if within line of sight. */
+					/* TODO: Weight aggro based on unit cost or threat value. */
+
+					if (unit.Location != null)
+					{
+						ai_addAggro(unit.Location, 1);
+					}
+				}
+			}
+
+			ai_smoothAggro();
+
+		}
+
 		#endregion
 		public void Damaged(Actor self, AttackInfo e)
 		{
@@ -639,7 +809,7 @@ namespace OpenRA.Mods.RA.AI
 			if (self.HasTrait<Harvester>())
 			{
 				ai_baseAttacked = true;
-				ai_baseAttackLocation = self.Location;
+				ai_baseAttackLocation = e.Attacker.Location;
 				ai_addAggro(self.Location, cost * e.Damage / health.MaxHP);
 			}
 
