@@ -220,8 +220,6 @@ namespace OpenRA.Mods.RA.AI
 		 * ai_priority_cash: Inhibits production of units and buildings not related to money.
 		 * 
 		 * */
-		private bool ai_priority_cash;
-
 		ActorInfo ChooseBuildingToBuild(ProductionQueue queue, bool buildPower)
 		{
 			var buildableThings = queue.BuildableItems();
@@ -230,7 +228,7 @@ namespace OpenRA.Mods.RA.AI
 			{
 				if (!buildPower) return null;
 
-				/* find the best thing we can build which produces power */
+				/* Find the best thing we can build which produces power */
 				return buildableThings.Where(a => GetPowerProvidedBy(a) > 0)
 					.OrderByDescending(a => GetPowerProvidedBy(a)).FirstOrDefault();
 			}
@@ -275,24 +273,6 @@ namespace OpenRA.Mods.RA.AI
 			{
 				return buildableThings.Where(a => a.Name == "proc").FirstOrDefault();
 			}
-			/*
-			if (myRefineries.Count() == 0 || myMiners.Count() == 0)
-			{
-				ai_priority_cash = true;
-				return buildableThings.Where(a => a.Traits.GetOrDefault<BuildingInfo>(). != null)
-					.FirstOrDefault();
-			}
-			*/
-
-			/* TODO: Calculate number of required refineries. */
-			//if (myRefineries.Count() < 0 || myMiners.Count() == 0)
-			{
-			}
-				
-			ai_priority_cash = false;
-			
-			
-
 
 			 
 			/*
@@ -324,8 +304,8 @@ namespace OpenRA.Mods.RA.AI
 		{
 			var buildableThings = queue.BuildableItems();
 
-			/* Maintain power, and cash */
-			if (!HasAdequatePower() || ai_priority_cash == true)
+			/* Maintain power */
+			if (!HasAdequatePower())
 			{
 				return null;
 			}
@@ -457,9 +437,11 @@ namespace OpenRA.Mods.RA.AI
 					&& !allUnits.Contains(a.Actor))
 					.Select(a => a.Actor).ToArray();
 
-	
 			/* Todo: properly assign units to their groups. */
-			controlGroups[aiGroups.GROUP_DEFENSE].AddRange(newUnits);
+			foreach (var unit in newUnits)
+			{
+				assignUnitToGroup(unit, aiGroups.GROUP_DEFENSE);
+			}
 
 			var harvesters = newUnits.Where(a => a.HasTrait<Harvester>());
 
@@ -629,7 +611,9 @@ namespace OpenRA.Mods.RA.AI
 				int value=0;
 				foreach (Actor a in controlGroups[aiGroups.GROUP_DEFENSE])
 				{
-					value += a.Info.Traits.GetOrDefault<ValuedInfo>().Cost;
+					var costTrait = a.Info.Traits.GetOrDefault<ValuedInfo>();
+					if (costTrait!=null)
+						value += costTrait.Cost;
 				}
 				/* TODO: Use flexible quota. */
 				if (value < 2500) return false;
@@ -639,7 +623,9 @@ namespace OpenRA.Mods.RA.AI
 				while (addValue < value / 2 && controlGroups[aiGroups.GROUP_DEFENSE].Count()>0)
 				{
 					Actor a = controlGroups[aiGroups.GROUP_DEFENSE].Random(random);
-					addValue += a.Info.Traits.GetOrDefault<ValuedInfo>().Cost;
+					var costTrait = a.Info.Traits.GetOrDefault<ValuedInfo>();
+					if (costTrait != null)
+						addValue += costTrait.Cost;
 					assignUnitToGroup(a, aiGroups.GROUP_ASSAULT);
 				}
 				groupTick[aiGroups.GROUP_ASSAULT] = ticks;
@@ -682,29 +668,29 @@ namespace OpenRA.Mods.RA.AI
 					if (a.HasTrait<Captures>())
 					{
 						/* TODO: Check for defenses */
-						var targets = world.FindUnitsInCircle(a.Location, 10)
-							.Where(z => z.Owner != null && 
-								p.Stances[z.Owner] == Stance.Enemy && 
-								z.HasTrait<Bib>());
+						var targets = p.World.ActorsWithTrait<Building>()
+							.Where(z => z.Actor.Owner != null &&
+								p.Stances[z.Actor.Owner] == Stance.Enemy &&
+								(z.Actor.Location - a.Location).Length < 15)
+							.OrderByDescending(z => (z.Actor.Location - a.Location).Length);
 
 						if (targets.Count() > 0)
 						{
-							world.IssueOrder(new Order("Enter", a, false) { TargetActor = targets.Random(random) });
+							world.IssueOrder(new Order("Enter", a, false) { TargetActor = targets.FirstOrDefault().Actor });
 							continue;
 						}
 					}
 					else if (a.HasTrait<C4Demolition>())
 					{
-						/* TODO: Check for defenses */
-						var targets1 = world.FindUnitsInCircle(a.Location, 10);
-						var targets2 = targets1.Where(z => z.Owner != null);
-						var targets3 = targets2.Where(z => p.Stances[z.Owner] == Stance.Enemy);
-						var targets = targets3.Where(z => 
-								z.HasTrait<Bib>());
+						var targets = p.World.ActorsWithTrait<Building>()
+							.Where(z => z.Actor.Owner != null &&
+								p.Stances[z.Actor.Owner] == Stance.Enemy &&
+								(z.Actor.Location - a.Location).Length < 15)
+							.OrderByDescending(z => (z.Actor.Location - a.Location).Length);
 
 						if (targets.Count() > 0)
 						{
-							world.IssueOrder(new Order("C4", a, false) { TargetActor = targets.Random(random) });
+							world.IssueOrder(new Order("C4", a, false) { TargetActor = targets.FirstOrDefault().Actor });
 							continue;
 						}
 					}
@@ -805,7 +791,6 @@ namespace OpenRA.Mods.RA.AI
 		#region Aggro Management
 		private void ai_addAggro(int2 pos, float amount)
 		{
-			/* TODO: Add Aggro */
 			aggroGrid[pos.X, pos.Y] += amount;
 		}
 
@@ -816,11 +801,11 @@ namespace OpenRA.Mods.RA.AI
 
 		void ai_smoothAggro()
 		{
-			float[,] smoothGrid = new float[world.Map.Bounds.Width + world.Map.Bounds.X,
-				world.Map.Bounds.Height + world.Map.Bounds.Y];
+			float[,] smoothGrid = new float[world.Map.Bounds.Width + world.Map.Bounds.X+1,
+				world.Map.Bounds.Height + world.Map.Bounds.Y+1];
 
-			float[,] countGrid =  new float[world.Map.Bounds.Width + world.Map.Bounds.X,
-				world.Map.Bounds.Height + world.Map.Bounds.Y];
+			float[,] countGrid =  new float[world.Map.Bounds.Width + world.Map.Bounds.X+1,
+				world.Map.Bounds.Height + world.Map.Bounds.Y+1];
 
 			for (int x = world.Map.Bounds.X; x < world.Map.Bounds.Right; ++x)
 			{
@@ -913,8 +898,8 @@ namespace OpenRA.Mods.RA.AI
 			this.p = pl;
 			enabled = true;
 
-			aggroGrid = new float[world.Map.Bounds.Width + world.Map.Bounds.X,
-				world.Map.Bounds.Height + world.Map.Bounds.Y];
+			aggroGrid = new float[world.Map.Bounds.Width + world.Map.Bounds.X+1,
+				world.Map.Bounds.Height + world.Map.Bounds.Y+1];
 
 
 			//builders = new BaseBuilder[] {
