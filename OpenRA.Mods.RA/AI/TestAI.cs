@@ -33,6 +33,15 @@ namespace OpenRA.Mods.RA.AI
     {
         public readonly string Name = "Unnamed Bot";
 
+		[FieldLoader.LoadUsing("LoadRefineries")]
+		public readonly Dictionary<string, string> Refineries = null;
+
+		static object LoadRefineries(MiniYaml y) {
+			return y.NodesDict["Refineries"].Nodes.ToDictionary(
+				t => t.Key,
+				t => FieldLoader.GetValue<string>("Refineries", t.Value.Value));
+		}
+
         string IBotInfo.Name { get { return this.Name; } }
         public object Create(ActorInitializer init) { return new TestAI(this); }
     }
@@ -226,15 +235,46 @@ namespace OpenRA.Mods.RA.AI
 					.OrderByDescending(a => GetPowerProvidedBy(a)).FirstOrDefault();
 			}
 
+			var myBuildings = p.World
+				.ActorsWithTrait<Building>()
+				.Where(a => a.Actor.Owner == p)
+				.Select(a => a.Actor.Info.Name).ToArray();
+
 			/* TODO: Handle Priority building for miners or refineries */
 			var myMiners = p.World
 				.ActorsWithTrait<Harvester>()
 				.Where(a => a.Actor.Owner == p)
 				.Select(a => a.Actor.Info.Name).ToArray();
+
 			var myRefineries = p.World
 				.ActorsWithTrait<OreRefinery>()
 				.Where (a => a.Actor.Owner == p)
 				.Select(a => a.Actor.Info.Name).ToArray();
+
+			if (myRefineries.Count() > myMiners.Count() + 1)
+			{
+				world.IssueOrder(new Order("Sell", p.PlayerActor, false) { 
+					TargetActor =	p.World
+						.ActorsWithTrait<OreRefinery>()
+						.Where(a => a.Actor.Owner == p)
+						.Select(a => a.Actor)
+						.Random(random)
+					}
+				);
+
+
+			}
+
+			int desiredRefineries=0;
+			foreach (string s in Info.Refineries.Keys)
+			{
+				if (myBuildings.Contains(s)) desiredRefineries++;
+			}
+
+			if (myRefineries.Count() < desiredRefineries)
+			{
+				return buildableThings.Where(a => a.Name == "proc").FirstOrDefault();
+			}
 			/*
 			if (myRefineries.Count() == 0 || myMiners.Count() == 0)
 			{
@@ -243,13 +283,17 @@ namespace OpenRA.Mods.RA.AI
 					.FirstOrDefault();
 			}
 			*/
+
+			/* TODO: Calculate number of required refineries. */
+			//if (myRefineries.Count() < 0 || myMiners.Count() == 0)
+			{
+			}
+				
 			ai_priority_cash = false;
 			
 			
-			var myBuildings = p.World
-				.ActorsWithTrait<Building>()
-				.Where(a => a.Actor.Owner == p)
-				.Select(a => a.Actor.Info.Name).ToArray();
+
+
 			 
 			/*
 			foreach (var frac in Info.BuildingFractions)
@@ -427,7 +471,20 @@ namespace OpenRA.Mods.RA.AI
 			ai_checkDefenseGroup();
 			ai_groupAssaultTick();
 
+			ai_groupHarvestersTick();
+
 			ai_buildUnits();
+		}
+
+		private void ai_groupHarvestersTick()
+		{
+			foreach (var a in controlGroups[aiGroups.GROUP_HARVESTER])
+			{
+				if (a.IsIdle)
+				{
+					a.QueueActivity(new OpenRA.Mods.RA.Activities.FindResources());
+				}
+			}
 		}
 
 		void ai_buildUnits()
@@ -622,6 +679,36 @@ namespace OpenRA.Mods.RA.AI
 
 				foreach (Actor a in controlGroups[aiGroups.GROUP_ASSAULT])
 				{
+					if (a.HasTrait<Captures>())
+					{
+						/* TODO: Check for defenses */
+						var targets = world.FindUnitsInCircle(a.Location, 10)
+							.Where(z => z.Owner != null && 
+								p.Stances[z.Owner] == Stance.Enemy && 
+								z.HasTrait<Bib>());
+
+						if (targets.Count() > 0)
+						{
+							world.IssueOrder(new Order("Enter", a, false) { TargetActor = targets.Random(random) });
+							continue;
+						}
+					}
+					else if (a.HasTrait<C4Demolition>())
+					{
+						/* TODO: Check for defenses */
+						var targets1 = world.FindUnitsInCircle(a.Location, 10);
+						var targets2 = targets1.Where(z => z.Owner != null);
+						var targets3 = targets2.Where(z => p.Stances[z.Owner] == Stance.Enemy);
+						var targets = targets3.Where(z => 
+								z.HasTrait<Bib>());
+
+						if (targets.Count() > 0)
+						{
+							world.IssueOrder(new Order("C4", a, false) { TargetActor = targets.Random(random) });
+							continue;
+						}
+					}
+
 					TryToMove(a, groupLocation[aiGroups.GROUP_ASSAULT], true);
 				}
 
@@ -780,7 +867,7 @@ namespace OpenRA.Mods.RA.AI
 
 					if (unit.Location != null)
 					{
-						ai_addAggro(unit.Location, 1);
+						ai_addAggro(unit.Location, unit.GetSellValue());
 					}
 				}
 			}
