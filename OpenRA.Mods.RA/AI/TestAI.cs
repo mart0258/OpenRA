@@ -441,6 +441,7 @@ namespace OpenRA.Mods.RA.AI
 			foreach (var unit in newUnits)
 			{
 				assignUnitToGroup(unit, aiGroups.GROUP_DEFENSE);
+				allUnits.Add(unit);
 			}
 
 			var harvesters = newUnits.Where(a => a.HasTrait<Harvester>());
@@ -471,7 +472,8 @@ namespace OpenRA.Mods.RA.AI
 
 		void ai_buildUnits()
 		{
-			string[] categories = { "Vehicle", "Infantry", "Plane" };
+			//string[] categories = { "Vehicle", "Infantry", "Plane" };
+			string[] categories = { "Vehicle", "Infantry"};
 			foreach (string category in categories)
 			{
 				var queue = FindQueues(category).FirstOrDefault(q => q.CurrentItem() == null);
@@ -516,6 +518,7 @@ namespace OpenRA.Mods.RA.AI
 			return xy;
 		}
 
+		/** Orders a unit to a general location. */
 		bool TryToMove(Actor a, int2 desiredMoveTarget, bool attackMove)
 		{
 			var xy = ChooseDestinationNear(a, desiredMoveTarget);
@@ -523,6 +526,14 @@ namespace OpenRA.Mods.RA.AI
 				return false;
 			world.IssueOrder(new Order(attackMove ? "AttackMove" : "Move", a, false) { TargetLocation = xy.Value });
 			return true;
+		}
+
+		/** Moves a unit to a general location.  Does no action if already nearby. */
+		bool relocateUnit(Actor a, int2 desiredMoveTarget, bool attackMove)
+		{
+			if ((desiredMoveTarget - a.Location).Length < 3) return false;
+
+			return TryToMove(a, desiredMoveTarget, attackMove);
 		}
 
 		private void assignUnitToGroup(Actor a, aiGroups group)
@@ -577,7 +588,7 @@ namespace OpenRA.Mods.RA.AI
 			/* Send units over. */
 			foreach (Actor a in controlGroups[aiGroups.GROUP_DEFENSE])
 			{
-				TryToMove(a, ai_defencePosition, true);
+				relocateUnit(a, ai_defencePosition, true);
 
 				/* Reduce aggro when responding. */
 				if (ai_baseAttacked)
@@ -676,7 +687,7 @@ namespace OpenRA.Mods.RA.AI
 
 						if (targets.Count() > 0)
 						{
-							world.IssueOrder(new Order("Enter", a, false) { TargetActor = targets.FirstOrDefault().Actor });
+							world.IssueOrder(new Order("CaptureActor", a, false) { TargetActor = targets.FirstOrDefault().Actor });
 							continue;
 						}
 					}
@@ -695,7 +706,7 @@ namespace OpenRA.Mods.RA.AI
 						}
 					}
 
-					TryToMove(a, groupLocation[aiGroups.GROUP_ASSAULT], true);
+					relocateUnit(a, groupLocation[aiGroups.GROUP_ASSAULT], true);
 				}
 
 			}
